@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Stamp from "../components/Stamp";
+import VerifyTranscript from "../components/VerifyTranscript";
 import { loadCertificates, type Certificate } from "../lib/arena";
 import { dateStamp, pad, shortAddress } from "../lib/format";
 
@@ -112,6 +113,19 @@ export default function CertificatePage() {
               The transcript hash was committed before the verdict and is stored in the ERC-721.
               Anyone holding the transcript can verify it matches.
             </p>
+          </div>
+        </div>
+      </section>
+      <section className="shell section" style={{ paddingTop: 0 }}>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <div className="panel">
+            <div className="panel__head">
+              <span className="panel__title">Re-verification</span>
+              <span className="kicker">client-side</span>
+            </div>
+            <div className="panel__body">
+              <VerifyTranscript expected={cert?.transcriptHash} />
+            </div>
           </div>
         </div>
       </section>

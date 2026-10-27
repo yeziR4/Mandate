@@ -2,9 +2,23 @@
 
 Rolling applications, and a submission in month N is ranked in N+1. Submitting **now** with a
 working board puts you in the November ranking and lets you pressure the team in Discord while
-the product is already live. Every hour spent polishing is an hour not spent in the queue.
+the product is already live.
 
-Ship in this order. Stop as soon as the form can be filled.
+## Four rules from the article that change the plan
+
+1. **Ranking is 80% valid monthly active users, 20% METIS gas.** Settled volume only counts toward
+   the per-user floor, never toward rank. So the job is *distinct humans doing transactions*, not
+   pool size. Do not spend a dollar chasing volume.
+2. **Every counted user needs a legitimacy signal**: a unique Telegram ID, a Privy login, a Web3
+   social handle, or a wallet older than 14 days or with prior Metis history. **We have none of
+   these.** A fresh wallet from a cold visitor does not count, no matter how many attempts it makes.
+3. **Wallets funded by the deployer, or from the same upstream source, do not count.** No gas
+   airdrops, no USDC credit, no sponsored first attempt. Users must arrive with their own funds —
+   or the signup must create a *Privy* wallet, which is the one path the brief explicitly blesses.
+4. **Indexing starts on Day 1 of month N+1.** Activity in October scores nothing. Use October to
+   deploy and prepare, and have users ready to transact on 1 November.
+
+**The blocker is item 2.** Everything else is hours of work.
 
 ---
 
@@ -16,7 +30,7 @@ git push -u origin main
 ```
 
 - [ ] Repo is **public** and shows `mandate/`, `keeper/`, `web/`, `SUBMIT.md`
-- [ ] Fresh wallet created — this is the deployer, the keeper, and the form's reward wallet
+- [ ] Fresh wallet created — deployer, keeper, and the form's reward wallet
 - [ ] ~$55 m.USDC + ~0.3 METIS on Andromeda. Confirm the m.USDC address from the Metis docs
       before sending anything. Do not guess it.
 
@@ -31,47 +45,62 @@ node mandate/scripts/deploy.mjs
 ```
 
 - [ ] Two addresses printed. Paste them into `mandate/FORM.md`
-- [ ] `node mandate/scripts/preflight.mjs` with `ARENA_ADDRESS` + `CERTIFICATE_ADDRESS` —
-      **14/14, including "scenario 1 is live" and "mandate hash matches policy.txt"**
-- [ ] One real attempt from `cast`: approve, `submitAttempt(0, keccak)`, confirm `attemptCount` is 1
+- [ ] `node mandate/scripts/preflight.mjs` — **14/14, including "scenario 1 is live"**
+- [ ] One real attempt from `cast`: approve, `submitAttempt(0, keccak)`, `attemptCount` is 1
 
-## Block 3 — half a day: keeper
+## Block 3 — the blocker: a legitimacy signal
 
-- [ ] Container on Fly / Railway / Render (serverless will time out on inference)
+Pick one, in order of preference:
+
+- [ ] **Privy** (`@privy-io/react-auth`) — email/social login, embedded wallet, and the brief names
+      it as a valid signal. Also removes the "install a wallet to attempt" wall, which is the whole
+      onboarding problem. Needs an app ID; free tier is enough for a pilot.
+- [ ] **X login bound to the wallet** — a Web3 social handle is a listed signal. Store
+      handle ↔ address, show the handle on the board, verify the link.
+- [ ] **Telegram ID** — same idea, one row per Telegram account.
+
+Whichever you pick, the board should show the signal next to each breaker. It is the difference
+between "activity" and "counted activity" in the payout snapshot.
+
+## Block 4 — half a day: keeper
+
+- [ ] Container on Fly / Railway / Render (serverless times out on inference)
 - [ ] `JUDGE_BASE_URL` + `JUDGE_API_KEY`, and `MODEL_*_BASE_URL` for **three** labs you can afford
-- [ ] `GET /health` shows the arena address and which models are real vs mock
+- [ ] `GET /health` shows the arena and which models are real vs mock
 - [ ] One attempt through `POST /attempts` → verdict → `relayTx`
 
-If the keeper is not up in time, **still submit.** The contracts, the board and the attempt
-flow are the product; the keeper is a service you can run by hand for a week.
+If the keeper is not hosted in time, **still submit.** It can run by hand for a week.
 
-## Block 4 — 2 hours: site
+## Block 5 — 2 hours: site
 
 - [ ] Vercel, root directory `web/`, env vars from `web/.env.example`
 - [ ] `/` loads without the "Preview data" badge
-- [ ] Connect the funded wallet, submit one attempt through the UI
+- [ ] An attempt through the UI, then verify the transcript on the certificate page
 - [ ] Screenshot the board and a certificate
 
-## Block 5 — submit, then push
+## Block 6 — submit, then push
 
 - [ ] Replace the three **[FILL]**s in `mandate/FORM.md`
 - [ ] Submit
-- [ ] Post in the Discord: what it is, the live URL, one specific ask ("please try to break
-      DeepSeek, the purse is at $12.70"). Being a known name in the channel is worth more than
-      another week of features.
+- [ ] Discord: post the live URL and one specific ask ("try to break DeepSeek, its purse is at
+      $12.70"). Be useful in that channel first — answer someone else's question, then mention it.
 
 ---
 
 ## Before you hit submit
 
 - **Do not ship ten models if only three are real.** Trim `keeper/models.json` and
-  `mandate/models.json` to the ones with keys, redeploy, and let the board show the real count.
-  A reviewer who breaks a mock and reads a canned refusal has caught you overstating it.
-- Contracts are **unaudited**, resolution is **operator-confirmed**, and there is **no TEE**.
-  Say so in the application. It reads as competence, not weakness.
+  `mandate/models.json`, redeploy, let the board show the real count. A reviewer who breaks a mock
+  and reads a canned refusal has caught you overstating it.
+- Contracts are **unaudited**, resolution is **operator-confirmed**, no TEE. Say so. It reads as
+  competence.
+- Ask in Discord whether ERC-8004 is deployed on Andromeda yet. If it is, registering the ten
+  agents is a few transactions and turns "a benchmark" into "a benchmark of identified agents" —
+  the brief's own vocabulary.
 
 ## The sentence that carries the application
 
 One commit is one transaction. A break pays out and mints a certificate in the same resolution.
-So a single engaged person produces six real transactions per week, and the board shows a
+So a single engaged person produces six real transactions in a week, and the board shows a
 reviewer exactly why — no padding anywhere in the product.
+
