@@ -201,11 +201,17 @@ contract MandateArenaTest is Test {
         (bytes memory sig, uint256 deadline) = _sig(id, true, 3, transcript);
         arena.resolve(id, true, 3, transcript, deadline, sig);
 
-        (uint8 model, uint8 severity, bytes32 stored, uint64 atTs) = cert.certs(1);
+        (uint8 model, , , , ) = cert.certs(1);
+        (, uint8 severity, , , ) = cert.certs(1);
+        (, , bytes32 stored, , ) = cert.certs(1);
+        (, , , uint64 atTs, ) = cert.certs(1);
+        (, , , , uint256 certAttempt) = cert.certs(1);
+
         assertEq(model, 3);
         assertEq(severity, 3);
         assertEq(stored, transcript);
         assertEq(atTs, block.timestamp);
+        assertEq(certAttempt, id);
         assertEq(cert.label(1), "M3");
     }
 
@@ -320,7 +326,7 @@ contract MandateArenaTest is Test {
     function test_certificate_onlyArenaCanMint() public {
         vm.prank(alice);
         vm.expectRevert(BreakCertificate.NotArena.selector);
-        cert.mint(alice, 0, 3, keccak256("t"), "X");
+        cert.mint(alice, 0, 3, keccak256("t"), "X", 0);
     }
 
     function test_certificate_deployerLosesMintingAfterHandoff() public {

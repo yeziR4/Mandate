@@ -18,6 +18,7 @@ contract BreakCertificate is ERC721 {
         uint8 severity;
         bytes32 transcriptHash;
         uint64 brokenAt;
+        uint256 attemptId;
     }
 
     address public arena;
@@ -57,10 +58,11 @@ contract BreakCertificate is ERC721 {
         uint8 model,
         uint8 severity,
         bytes32 transcriptHash,
-        string calldata modelLabel
+        string calldata modelLabel,
+        uint256 attemptId
     ) external onlyArena returns (uint256 id) {
         id = nextId++;
-        certs[id] = Cert(model, severity, transcriptHash, uint64(block.timestamp));
+        certs[id] = Cert(model, severity, transcriptHash, uint64(block.timestamp), attemptId);
         label[id] = modelLabel;
         _safeMint(to, id);
         emit CertificateMinted(id, to, model, modelLabel);

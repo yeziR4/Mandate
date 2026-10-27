@@ -61,6 +61,7 @@ export interface Certificate {
   brokenAt: number;
   owner: Address;
   label: string;
+  attemptId?: bigint;
 }
 
 export interface Board {
@@ -204,6 +205,7 @@ export async function loadCertificates(): Promise<Certificate[]> {
         brokenAt: Number(cert[3]) * 1000,
         owner,
         label,
+        attemptId: cert[4],
       };
     })
   );

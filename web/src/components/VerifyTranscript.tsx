@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keccak256, toHex } from "viem";
 
 /**
@@ -8,8 +8,18 @@ import { keccak256, toHex } from "viem";
  * same function the keeper used, and compares. No server, no trust in us — which is the
  * point of publishing a hash instead of a claim.
  */
-export default function VerifyTranscript({ expected }: { expected?: string }) {
-  const [text, setText] = useState("");
+export default function VerifyTranscript({
+  expected,
+  initial,
+}: {
+  expected?: string;
+  initial?: string;
+}) {
+  const [text, setText] = useState(initial ?? "");
+
+  useEffect(() => {
+    if (initial !== undefined) setText(initial);
+  }, [initial]);
 
   const computed = useMemo(() => (text.length > 0 ? keccak256(toHex(text)) : undefined), [text]);
   const match = Boolean(computed && expected && computed.toLowerCase() === expected.toLowerCase());

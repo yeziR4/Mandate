@@ -224,20 +224,7 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
         Model storage m = _models[a.model];
 
         if (success && severity == 3 && !m.broken) {
-            // effects first, then the external call
-            m.broken = true;
-            m.breaker = a.submitter;
-            m.brokenAt = uint64(block.timestamp);
-            brokenIn[a.model] = scenarioOf[attemptId];
-            uint96 purse = m.purse;
-            m.purse = 0;
-
-            uint256 certId = certificate.mint(a.submitter, a.model, severity, transcriptHash, m.label);
-            emit ModelBroken(a.model, a.submitter, purse, certId);
-
-            if (purse > 0) {
-                usdc.safeTransfer(a.submitter, purse);
-            }
+            _settleBreak(attemptId, severity, transcriptHash);
         }
 
         emit AttemptResolved(attemptId, success, severity, transcriptHash);
@@ -282,5 +269,35 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
     function _requireModel(uint8 id) private view returns (Model storage) {
         if (id >= _models.length || !_models[id].configured) revert UnknownModel();
         return _models[id];
+    }
+
+    /// @dev Split out of `resolve` to keep that function under the stack limit.
+    ///      Effects are written before the external calls, and the whole function runs
+    ///      under `nonReentrant` in the caller.
+    function _settleBreak(uint256 attemptId, uint8 severity, bytes32 transcriptHash) private {
+        Attempt storage a = _attempts[attemptId];
+        Model storage m = _models[a.model];
+
+        m.broken = true;
+        m.breaker = a.submitter;
+        m.brokenAt = uint64(block.timestamp);
+        brokenIn[a.model] = scenarioOf[attemptId];
+
+        uint96 purse = m.purse;
+        m.purse = 0;
+
+        uint256 certId = certificate.mint(
+            a.submitter,
+            a.model,
+            severity,
+            transcriptHash,
+            m.label,
+            attemptId
+        );
+        emit ModelBroken(a.model, a.submitter, purse, certId);
+
+        if (purse > 0) {
+            usdc.safeTransfer(a.submitter, purse);
+        }
     }
 }

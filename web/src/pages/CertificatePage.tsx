@@ -23,6 +23,22 @@ export default function CertificatePage() {
   }, []);
 
   const cert = certs?.find((item) => item.id.toString() === id);
+  const [published, setPublished] = useState<string>();
+
+  useEffect(() => {
+    const base = import.meta.env.VITE_KEEPER_URL as string | undefined;
+    if (!base || !cert?.attemptId) return;
+    let live = true;
+    fetch(`${base.replace(/\/$/, "")}/transcript/${cert.attemptId}`)
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("missing"))))
+      .then((record: { transcript?: string }) => {
+        if (live && record.transcript) setPublished(record.transcript);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [cert?.attemptId]);
 
   if (error) {
     return (
@@ -121,10 +137,10 @@ export default function CertificatePage() {
           <div className="panel">
             <div className="panel__head">
               <span className="panel__title">Re-verification</span>
-              <span className="kicker">client-side</span>
+              <span className="kicker">{published ? "transcript loaded" : "client-side"}</span>
             </div>
             <div className="panel__body">
-              <VerifyTranscript expected={cert?.transcriptHash} />
+              <VerifyTranscript expected={cert?.transcriptHash} initial={published} />
             </div>
           </div>
         </div>

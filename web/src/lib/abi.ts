@@ -140,6 +140,7 @@ export const certificateAbi = [
       { name: "severity", type: "uint8" },
       { name: "transcriptHash", type: "bytes32" },
       { name: "brokenAt", type: "uint64" },
+      { name: "attemptId", type: "uint256" },
     ],
   },
 ] as const;

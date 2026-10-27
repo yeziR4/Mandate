@@ -1,0 +1,37 @@
+# Fly.io config for the keeper.
+#   fly launch --no-deploy --copy-config --name mandate-keeper
+#   fly volumes create keeper_data --size 1
+#   fly secrets set RPC_URL=... ARENA_ADDRESS=0x... KEEPER_PRIVATE_KEY=0x... KEEPER_API_KEY=...
+#   fly deploy
+#
+# The keeper must stay a long-lived process: inference calls outlive a serverless timeout,
+# and it holds the verdict-signing key.
+app = "mandate-keeper"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile.keeper"
+
+[env]
+  PORT = "8787"
+  AUTO_RELAY = "true"
+
+[[mounts]]
+  source = "keeper_data"
+  destination = "/app/keeper/data"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = false
+  min_machines_running = 1
+
+[[http_service.checks]]
+  path = "/health"
+  interval = "15s"
+  timeout = "5s"
+  grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
