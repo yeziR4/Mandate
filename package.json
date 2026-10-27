@@ -1,0 +1,32 @@
+{
+  "name": "chain-signer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "compile:mandate": "node mandate/scripts/compile.mjs",
+    "deploy:mandate": "node mandate/scripts/deploy.mjs",
+    "preflight": "node mandate/scripts/preflight.mjs",
+    "test:mandate": "cd mandate && forge test",
+    "e2e:mandate": "node --experimental-strip-types mandate/scripts/e2e.mjs",
+    "keeper": "node keeper/server.ts"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@gear-js/api": "^0.45.0",
+    "@polkadot/util": "^14.0.2",
+    "@x402/evm": "^2.11.0",
+    "@x402/fetch": "^2.11.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "^5.6.1",
+    "@types/node": "^22",
+    "@vercel/node": "^8",
+    "solc": "^0.8.38",
+    "typescript": "^5"
+  }
+}

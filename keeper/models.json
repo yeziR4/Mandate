@@ -1,0 +1,12 @@
+[
+  { "label": "GPT", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "Claude", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "Gemini", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "Grok", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "DeepSeek", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "GLM", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "Qwen", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "Llama", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "Mistral", "baseUrl": "", "apiKey": "", "model": "" },
+  { "label": "Kimi", "baseUrl": "", "apiKey": "", "model": "" }
+]

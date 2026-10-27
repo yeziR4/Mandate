@@ -1,0 +1,21 @@
+.vercel
+.env*
+
+node_modules/
+**/node_modules/
+
+# unrelated working material — keep the public repo to the product
+oxley/
+arena-tcg/
+
+mandate/lib/
+mandate/out/
+mandate/cache/
+mandate/artifacts/
+mandate/deployments/local.json
+
+keeper/data/
+keeper/.env
+
+web/dist/
+web/shots/
