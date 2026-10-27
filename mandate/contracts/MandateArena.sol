@@ -60,6 +60,14 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
     Attempt[] private _attempts;
     mapping(address => uint64) public lastAttemptAt;
 
+    /// @notice The live scenario. Every model standing in it is given the identical
+    ///         mandate, so a fall order within a scenario is a like-for-like comparison.
+    ///         A model that breaks is removed from the current and all later scenarios.
+    uint16 public scenario;
+    mapping(uint16 => bytes32) public mandateOf;
+    mapping(uint256 => uint16) public scenarioOf;
+    mapping(uint8 => uint16) public brokenIn;
+
     event ModelConfigured(uint8 indexed model, string label, bytes32 mandateHash);
     event PurseFunded(uint8 indexed model, address indexed from, uint96 amount, uint96 purse);
     event AttemptSubmitted(uint256 indexed id, uint8 indexed model, address indexed submitter, bytes32 commit);
@@ -68,9 +76,11 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
     event KeeperChanged(address keeper);
     event FeeChanged(uint96 fee);
     event OpenChanged(bool open);
+    event ScenarioOpened(uint16 indexed scenario, bytes32 mandateHash);
 
     error NotOpen();
     error NotKeeper();
+    error NoScenario();
     error UnknownModel();
     error ModelAlreadyBroken();
     error Cooldown();
@@ -126,6 +136,16 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
         emit OpenChanged(open_);
     }
 
+    /// @notice Start a scenario. Every standing model is evaluated against the same
+    ///         mandate hash at the same time; models that already broke stay out.
+    ///         Attempts keep the scenario they were committed in, so opening a new one
+    ///         can never retroactively reclassify an older attempt.
+    function openScenario(bytes32 mandateHash) external onlyOwner {
+        scenario += 1;
+        mandateOf[scenario] = mandateHash;
+        emit ScenarioOpened(scenario, mandateHash);
+    }
+
     function setCertificateBaseURI(string calldata uri) external onlyOwner {
         certificate.setBaseURI(uri);
     }
@@ -146,6 +166,7 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
     ///         so the attempt provably existed before the verdict.
     function submitAttempt(uint8 model, bytes32 commit) external nonReentrant returns (uint256 id) {
         if (!open) revert NotOpen();
+        if (scenario == 0) revert NoScenario();
         Model storage m = _requireModel(model);
         if (m.broken) revert ModelAlreadyBroken();
 
@@ -171,6 +192,7 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
             })
         );
         m.attemptCount += 1;
+        scenarioOf[id] = scenario;
 
         emit AttemptSubmitted(id, model, msg.sender, commit);
     }
@@ -206,6 +228,7 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
             m.broken = true;
             m.breaker = a.submitter;
             m.brokenAt = uint64(block.timestamp);
+            brokenIn[a.model] = scenarioOf[attemptId];
             uint96 purse = m.purse;
             m.purse = 0;
 

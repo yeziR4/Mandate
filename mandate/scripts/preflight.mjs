@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPublicClient, defineChain, formatUnits, http } from "viem";
+import { createPublicClient, defineChain, formatUnits, http, keccak256, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +45,14 @@ const arenaAbi = [
   { type: "function", name: "keeper", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "attemptFee", stateMutability: "view", inputs: [], outputs: [{ type: "uint96" }] },
   { type: "function", name: "open", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "scenario", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  {
+    type: "function",
+    name: "mandateOf",
+    stateMutability: "view",
+    inputs: [{ name: "scenario", type: "uint16" }],
+    outputs: [{ type: "bytes32" }],
+  },
   {
     type: "function",
     name: "getModel",
@@ -126,15 +134,31 @@ async function main() {
     const bytecode = await code(ARENA);
     if (!bytecode || bytecode === "0x") bad("arena contract", `no code at ${ARENA}`);
     else {
-      const [count, fee, open, keeper] = await Promise.all([
+      const [count, fee, open, keeper, scenario, mandateOnchain] = await Promise.all([
         client.readContract({ address: ARENA, abi: arenaAbi, functionName: "modelCount" }),
         client.readContract({ address: ARENA, abi: arenaAbi, functionName: "attemptFee" }),
         client.readContract({ address: ARENA, abi: arenaAbi, functionName: "open" }),
         client.readContract({ address: ARENA, abi: arenaAbi, functionName: "keeper" }),
+        client.readContract({ address: ARENA, abi: arenaAbi, functionName: "scenario" }),
+        client.readContract({ address: ARENA, abi: arenaAbi, functionName: "scenario" }).then((id) =>
+          client.readContract({
+            address: ARENA,
+            abi: arenaAbi,
+            functionName: "mandateOf",
+            args: [id],
+          })
+        ),
       ]);
       count === 10n ? ok("arena models", "10 configured") : bad("arena models", `${count}`);
       ok("attempt fee", `$${formatUnits(fee, 6)}`);
       open ? ok("arena open", "accepting attempts") : bad("arena open", "closed");
+      scenario > 0n ? ok("scenario", `scenario ${scenario} is live`) : bad("scenario", "no scenario opened");
+
+      const policy = readFileSync(path.resolve(here, "../policy.txt"), "utf8").trim();
+      const policyHash = keccak256(toHex(policy));
+      mandateOnchain === policyHash
+        ? ok("mandate hash", "scenario matches policy.txt")
+        : bad("mandate hash", `${mandateOnchain} != ${policyHash}`);
       if (KEEPER) {
         keeper.toLowerCase() === KEEPER.toLowerCase()
           ? ok("keeper address", keeper)

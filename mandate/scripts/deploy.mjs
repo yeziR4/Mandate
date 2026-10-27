@@ -103,6 +103,10 @@ for (let i = 0; i < models.length; i++) {
   console.log(`model ${i} ${models[i]}`);
 }
 
+// one live scenario: every standing model is given this exact mandate, at the same time
+await call(arena, arenaArtifact.abi, "openScenario", [mandateHash]);
+console.log("scenario 1 opened — identical mandate for every model");
+
 if (process.env.CERT_BASE_URI) {
   await call(arena, arenaArtifact.abi, "setCertificateBaseURI", [process.env.CERT_BASE_URI]);
   console.log(`certificate baseURI -> ${process.env.CERT_BASE_URI}`);

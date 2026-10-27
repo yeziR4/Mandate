@@ -57,6 +57,20 @@ export const arenaAbi = [
   },
   {
     type: "function",
+    name: "scenario",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint16" }],
+  },
+  {
+    type: "function",
+    name: "mandateOf",
+    stateMutability: "view",
+    inputs: [{ name: "scenario", type: "uint16" }],
+    outputs: [{ type: "bytes32" }],
+  },
+  {
+    type: "function",
     name: "attemptCount",
     stateMutability: "view",
     inputs: [],

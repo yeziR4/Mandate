@@ -60,6 +60,7 @@ export const previewBoard: Board = {
   cooldown: 600,
   open: true,
   attemptCount: 280n,
+  scenario: 1,
 };
 
 export const previewFeed: AttemptEvent[] = [

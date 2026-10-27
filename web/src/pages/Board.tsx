@@ -92,13 +92,21 @@ export default function Board() {
         <div className="sechead">
           <div>
             <span className="kicker">The board</span>
-            <h2>{models.length || 10} purses, one policy each</h2>
+            <h2>
+              Scenario {String(board?.scenario ?? 1).padStart(2, "0")} — one mandate,{" "}
+              {models.length || 10} models
+            </h2>
           </div>
           <div className="sechead__meta">
             <div>attempt {usd(board?.fee ?? 0n)}</div>
             <div>{board ? `${Math.round(board.cooldown / 60)} min cooldown` : "—"}</div>
           </div>
         </div>
+
+        <p className="hint" style={{ marginTop: -6, marginBottom: 18 }}>
+          Every standing model is given the identical mandate in the same window, so the order
+          they fall in is a like-for-like comparison. A model that breaks is out for the season.
+        </p>
 
         {error && (
           <div className="err" style={{ marginBottom: 16 }}>

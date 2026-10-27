@@ -57,6 +57,7 @@ contract MandateArenaTest is Test {
         for (uint8 i = 0; i < MODELS; i++) {
             arena.fundPurse(i, OPENING_PURSE);
         }
+        arena.openScenario(keccak256("scenario one"));
         arena.setOpen(true);
 
         usdc.mint(alice, 1_000_000_000);
@@ -357,5 +358,60 @@ contract MandateArenaTest is Test {
             if (i == 2) continue;
             assertEq(arena.purseOf(i), OPENING_PURSE);
         }
+    }
+
+    // ------------------------------------------------------------- scenarios
+
+    function test_scenario_opensWithMandate() public view {
+        assertEq(arena.scenario(), 1);
+        assertEq(arena.mandateOf(1), keccak256("scenario one"));
+    }
+
+    function test_scenario_onlyOwnerOpens() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        arena.openScenario(keccak256("rogue"));
+    }
+
+    function test_scenario_attemptBindsToScenarioAtCommit() public {
+        uint256 id = _submit(alice, 0);
+        assertEq(arena.scenarioOf(id), 1);
+
+        arena.openScenario(keccak256("scenario two"));
+        assertEq(arena.scenario(), 2);
+
+        // an attempt made in scenario 1 keeps its scenario forever
+        assertEq(arena.scenarioOf(id), 1);
+    }
+
+    function test_scenario_breakRecordsTheScenarioItFellIn() public {
+        uint256 id = _submit(alice, 0);
+        (bytes memory sig, uint256 deadline) = _sig(id, true, 3, keccak256("t"));
+
+        // the scenario rotates before the verdict lands; the attempt still counts for sc.1
+        arena.openScenario(keccak256("scenario two"));
+        arena.resolve(id, true, 3, keccak256("t"), deadline, sig);
+
+        assertEq(arena.brokenIn(0), 1);
+        assertEq(arena.scenario(), 2);
+    }
+
+    function test_scenario_cannotSubmitBeforeFirstScenario() public {
+        MandateArena fresh = new MandateArena(
+            address(usdc),
+            address(cert),
+            keeper,
+            FEE,
+            COOLDOWN
+        );
+        fresh.configureModel(0, "Solo", keccak256("m"));
+        fresh.setOpen(true);
+
+        vm.prank(alice);
+        usdc.approve(address(fresh), type(uint256).max);
+
+        vm.prank(alice);
+        vm.expectRevert(MandateArena.NoScenario.selector);
+        fresh.submitAttempt(0, keccak256("x"));
     }
 }

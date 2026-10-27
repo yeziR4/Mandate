@@ -69,6 +69,7 @@ export interface Board {
   cooldown: number;
   open: boolean;
   attemptCount: bigint;
+  scenario: number;
 }
 
 const asModel = (id: number, raw: {
@@ -93,12 +94,13 @@ const asModel = (id: number, raw: {
 export async function loadBoard(): Promise<Board> {
   if (!ARENA_ADDRESS || PREVIEW) return previewBoard;
 
-  const [count, fee, cooldown, open, attempts] = await Promise.all([
+  const [count, fee, cooldown, open, attempts, scenario] = await Promise.all([
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "modelCount" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "attemptFee" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "cooldown" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "open" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "attemptCount" }),
+    publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "scenario" }),
   ]);
 
   const ids = Array.from({ length: Number(count) }, (_, i) => i);
@@ -119,6 +121,7 @@ export async function loadBoard(): Promise<Board> {
     cooldown: Number(cooldown),
     open,
     attemptCount: attempts,
+    scenario: Number(scenario),
   };
 }
 

@@ -1,84 +1,77 @@
-# Submit by 1 November — checklist
+# Submit this week — 48-hour sprint
 
-Today is 27 October. Everything below is ordered by what blocks the application form.
-The form needs exactly four things that do not exist yet: **a public repo, two mainnet
-addresses, a live URL, and a working attempt loop.**
+Rolling applications, and a submission in month N is ranked in N+1. Submitting **now** with a
+working board puts you in the November ranking and lets you pressure the team in Discord while
+the product is already live. Every hour spent polishing is an hour not spent in the queue.
+
+Ship in this order. Stop as soon as the form can be filled.
 
 ---
 
-## Day 1 (today) — repo and key
+## Block 1 — 2 hours: repo, wallet, money
 
-- [ ] Create an empty **public** GitHub repo, then:
-  ```powershell
-  git init
-  git add .
-  git commit -m "Mandate: purses, mandates, keeper, board"
-  git remote add origin https://github.com/<you>/mandate.git
-  git push -u origin main
-  ```
-- [ ] Create a fresh wallet for the pilot. Note its address — this is the form's reward wallet too.
-- [ ] Fund it with ~$55 of m.USDC and ~0.5 METIS. Confirm the m.USDC address from the Metis docs
-  before sending anything.
-- [ ] `node mandate/scripts/preflight.mjs` — expect the USDC and gas checks to pass, arena to fail
-  (it is not deployed yet).
+```powershell
+git remote add origin https://github.com/<you>/mandate.git
+git push -u origin main
+```
 
-## Day 2 — deploy
+- [ ] Repo is **public** and shows `mandate/`, `keeper/`, `web/`, `SUBMIT.md`
+- [ ] Fresh wallet created — this is the deployer, the keeper, and the form's reward wallet
+- [ ] ~$55 m.USDC + ~0.3 METIS on Andromeda. Confirm the m.USDC address from the Metis docs
+      before sending anything. Do not guess it.
+
+## Block 2 — 2 hours: deploy
 
 ```powershell
 $env:DEPLOYER_PRIVATE_KEY="0x…"
-$env:USDC_ADDRESS="0x…"            # m.USDC on Andromeda, confirmed
-$env:KEEPER_ADDRESS="0x…"          # a separate key from the deployer, if you can
+$env:USDC_ADDRESS="0x…"
 $env:COOLDOWN="600"
 $env:FUND_PURSES="true"
 node mandate/scripts/deploy.mjs
 ```
 
-- [ ] Two addresses printed → paste into `mandate/FORM.md`
-- [ ] `node mandate/scripts/preflight.mjs` with `ARENA_ADDRESS` and `CERTIFICATE_ADDRESS` set — all green
-- [ ] Confirm the ten purses are visible on the explorer
+- [ ] Two addresses printed. Paste them into `mandate/FORM.md`
+- [ ] `node mandate/scripts/preflight.mjs` with `ARENA_ADDRESS` + `CERTIFICATE_ADDRESS` —
+      **14/14, including "scenario 1 is live" and "mandate hash matches policy.txt"**
+- [ ] One real attempt from `cast`: approve, `submitAttempt(0, keccak)`, confirm `attemptCount` is 1
 
-## Day 3 — keeper
+## Block 3 — half a day: keeper
 
-- [ ] Deploy the keeper to a container host (Fly / Railway / Render). See `keeper/README.md`.
-- [ ] Set `JUDGE_BASE_URL` + `JUDGE_API_KEY`, and per-model `MODEL_*_BASE_URL` for at least
-  **three** labs. Leave the rest on mock rather than fake them.
-- [ ] `GET /health` returns your arena address and the real model count
-- [ ] Run one real attempt end to end: commit → POST → verdict → relay → `getAttempt` shows resolved
+- [ ] Container on Fly / Railway / Render (serverless will time out on inference)
+- [ ] `JUDGE_BASE_URL` + `JUDGE_API_KEY`, and `MODEL_*_BASE_URL` for **three** labs you can afford
+- [ ] `GET /health` shows the arena address and which models are real vs mock
+- [ ] One attempt through `POST /attempts` → verdict → `relayTx`
 
-## Day 4 — site
+If the keeper is not up in time, **still submit.** The contracts, the board and the attempt
+flow are the product; the keeper is a service you can run by hand for a week.
 
-- [ ] `cd web; npm.cmd run build`
-- [ ] Vercel project, **root directory `web/`**, env vars from `web/.env.example`
-- [ ] Load `/` — the "Preview data" badge must be gone
-- [ ] Load a model page, connect the funded wallet, submit a real attempt through the UI
-- [ ] Screenshot the board, a model page, the certificate page
+## Block 4 — 2 hours: site
 
-## Day 5 — apply
+- [ ] Vercel, root directory `web/`, env vars from `web/.env.example`
+- [ ] `/` loads without the "Preview data" badge
+- [ ] Connect the funded wallet, submit one attempt through the UI
+- [ ] Screenshot the board and a certificate
 
-- [ ] `mandate/FORM.md` — every **[FILL]** replaced with a real URL or address
-- [ ] Read the description paragraph out loud once. It should sound like something you would say.
-- [ ] Submit. Applications in month N are ranked in month N+1, so a submission on 31 October
-  puts you in the November ranking with the board already live.
+## Block 5 — submit, then push
+
+- [ ] Replace the three **[FILL]**s in `mandate/FORM.md`
+- [ ] Submit
+- [ ] Post in the Discord: what it is, the live URL, one specific ask ("please try to break
+      DeepSeek, the purse is at $12.70"). Being a known name in the channel is worth more than
+      another week of features.
 
 ---
 
-## What is honestly not ready
+## Before you hit submit
 
-Say this if asked, and never imply otherwise:
+- **Do not ship ten models if only three are real.** Trim `keeper/models.json` and
+  `mandate/models.json` to the ones with keys, redeploy, and let the board show the real count.
+  A reviewer who breaks a mock and reads a canned refusal has caught you overstating it.
+- Contracts are **unaudited**, resolution is **operator-confirmed**, and there is **no TEE**.
+  Say so in the application. It reads as competence, not weakness.
 
-- Contracts are **unaudited**. Fifty dollars at risk, no upgrade path, no admin drain.
-- Resolution is **operator-confirmed**: the keeper signs, a human approves every break.
-  No TEE, no dispute jury.
-- X sign-in is not built; the site is wallet-only.
-- Only the models with real API keys are real. The rest run mock and the board does not say so
-  yet — either wire them or remove them from `models.json` before you apply.
+## The sentence that carries the application
 
-## The number that matters
-
-The programme wants 15+ wallets doing 3+ transactions a month. One commit is one transaction.
-A broken model pays out and mints in the same resolution, so a single good attempt is worth six
-transactions per person — there is no padding anywhere in this product, and the board makes that
-visible to a reviewer in about four seconds.
-
-That is the strongest thing you can say in the application, and it is true from the first
-gameweek.
+One commit is one transaction. A break pays out and mints a certificate in the same resolution.
+So a single engaged person produces six real transactions per week, and the board shows a
+reviewer exactly why — no padding anywhere in the product.
