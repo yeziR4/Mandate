@@ -1,16 +1,11 @@
 import { useMemo, useState } from "react";
-import { createWalletClient, custom, keccak256, maxUint256, toHex } from "viem";
+import { keccak256, maxUint256, toHex } from "viem";
 import type { Model } from "../lib/arena";
-import {
-  ARENA_ADDRESS,
-  PREVIEW,
-  USDC_ADDRESS,
-  metisAndromeda,
-  publicClient,
-} from "../lib/arena";
+import { ARENA_ADDRESS, PREVIEW, USDC_ADDRESS, metisAndromeda, publicClient } from "../lib/arena";
 import { arenaAbi, erc20Abi } from "../lib/abi";
 import { usd } from "../lib/format";
-import { useWallet } from "../lib/wallet";
+import { clientFor } from "../lib/wallet";
+import { useWallet } from "../lib/walletContext";
 
 interface Receipt {
   attemptId: string;
@@ -35,22 +30,13 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
 
   async function submit() {
     setError(undefined);
-    const provider = window.ethereum;
-    if (!provider) {
-      setError("No EVM wallet detected in this browser.");
-      return;
-    }
     if (!wallet.address || !ARENA_ADDRESS || !USDC_ADDRESS) {
       setError("Connect a wallet first.");
       return;
     }
 
     try {
-      const client = createWalletClient({
-        account: wallet.address,
-        chain: metisAndromeda,
-        transport: custom(provider),
-      });
+      const client = await clientFor(wallet);
 
       const balance = await publicClient.readContract({
         address: USDC_ADDRESS,

@@ -17,7 +17,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const env = (key, fallback = "") => process.env[key] ?? fallback;
 
 const RPC = env("RPC_URL", "https://andromeda.metis.io/?owner=1088");
-const USDC = env("USDC_ADDRESS");
+const USDC = env("USDC_ADDRESS", "0xEA32A96608495e54156Ae48931A7c20f0dcc1a21");
 const ARENA = env("ARENA_ADDRESS");
 const CERT = env("CERTIFICATE_ADDRESS");
 const KEEPER = env("KEEPER_ADDRESS");
@@ -110,7 +110,7 @@ async function main() {
           : Promise.resolve(0n),
       ]);
       decimals === 6 ? ok("usdc decimals", "6") : bad("usdc decimals", `${decimals}, contract assumes 6`);
-      ok("usdc", `${symbol} at ${USDC.slice(0, 10)}…`);
+      symbol === "m.USDC" ? ok("usdc symbol", symbol) : bad("usdc symbol", `${symbol}, expected m.USDC`);
       if (DEPLOYER) {
         const needs = 10n * 5_000_000n + 1_000_000n;
         balance >= needs

@@ -2,7 +2,7 @@ import { Link, NavLink } from "react-router-dom";
 import Mark from "./Mark";
 import { PREVIEW, metisAndromeda } from "../lib/arena";
 import { shortAddress } from "../lib/format";
-import { useWallet } from "../lib/wallet";
+import { useWallet } from "../lib/walletContext";
 
 const links = [
   { to: "/", label: "Board" },
@@ -20,7 +20,7 @@ function WalletButton() {
         onClick={() => void wallet.connect()}
         disabled={wallet.status === "connecting"}
       >
-        {wallet.status === "connecting" ? "Connecting…" : "Connect"}
+        {wallet.status === "connecting" ? "Signing in…" : "Sign in"}
       </button>
     );
   }
@@ -31,10 +31,10 @@ function WalletButton() {
     <button
       className={`wallet${wrongChain ? " wallet--warn" : ""}`}
       onClick={() => void wallet.connect()}
-      title={wallet.address}
+      title={`${wallet.address} · ${wallet.via}`}
     >
       <span className="dot" style={{ background: wrongChain ? "var(--dead)" : "var(--live)" }} />
-      {wrongChain ? "Wrong network" : shortAddress(wallet.address)}
+      {wrongChain ? "Wrong network" : (wallet.label ?? shortAddress(wallet.address))}
     </button>
   );
 }

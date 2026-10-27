@@ -38,9 +38,12 @@ if (!privateKey || !privateKey.startsWith("0x")) {
   console.error("DEPLOYER_PRIVATE_KEY missing");
   process.exit(1);
 }
-const usdc = process.env.USDC_ADDRESS;
-if (!usdc || !usdc.startsWith("0x")) {
-  console.error("USDC_ADDRESS missing — use the m.USDC address on Metis Andromeda (chain 1088)");
+
+// Verified on Andromeda: symbol "m.USDC", 6 decimals, read from the contract at runtime by preflight.
+const DEFAULT_MUSDC = "0xEA32A96608495e54156Ae48931A7c20f0dcc1a21";
+const usdc = process.env.USDC_ADDRESS ?? DEFAULT_MUSDC;
+if (!usdc.startsWith("0x")) {
+  console.error("USDC_ADDRESS is not an address");
   process.exit(1);
 }
 

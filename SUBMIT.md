@@ -20,6 +20,16 @@ the product is already live.
 
 **The blocker is item 2.** Everything else is hours of work.
 
+## Verified on chain, 27 Oct
+
+- **m.USDC** — `0xEA32A96608495e54156Ae48931A7c20f0dcc1a21`, symbol `m.USDC`, 6 decimals.
+  Read from the contract, not from a blog. It is now the default in `deploy.mjs` and `preflight.mjs`.
+- **ERC-8004 is live on Andromeda** — IdentityRegistry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`
+  (EIP-1967 proxy, impl `0x7274e874ca62410a93bd8bf61c69d8045e399c02`, `name()` returns
+  `AgentIdentity`), ReputationRegistry `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63`.
+  `node mandate/scripts/register-agents.mjs` registers each model as an agent identity.
+  **Do not quote that as a product feature until you run it.**
+
 ---
 
 ## Block 1 — 2 hours: repo, wallet, money
