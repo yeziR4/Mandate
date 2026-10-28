@@ -220,7 +220,7 @@ const first = await publicClient.readContract({
 
 const problems = [];
 if (modelsOnchain !== BigInt(models.length)) problems.push(`modelCount ${modelsOnchain}`);
-if (scenarioOnchain !== 1n) problems.push(`scenario ${scenarioOnchain}`);
+if (Number(scenarioOnchain) !== 1) problems.push(`scenario ${scenarioOnchain}`);
 if (bountyOnchain !== bounty) problems.push(`bounty ${bountyOnchain}`);
 if (!openOnchain) problems.push("arena not open");
 if (feeOnchain !== ATTEMPT_FEE) problems.push(`fee ${feeOnchain}`);
