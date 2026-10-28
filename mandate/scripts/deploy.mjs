@@ -62,9 +62,33 @@ const transport = fallback([http(RPC_URL), http("https://metis.drpc.org")]);
 const publicClient = createPublicClient({ chain, transport });
 const wallet = createWalletClient({ account, chain, transport });
 
+// Metis Andromeda does not implement Cancun opcodes. A Cancun-targeted build deploys fine
+// and then reverts on every dynamic return, which looks like a broken contract. Refuse early.
+function assertEvmCompatible(artifact) {
+  const hex = artifact.deployedBytecode.replace(/^0x/, "");
+  const bytes = [];
+  for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16));
+  const banned = { 0x5e: "MCOPY", 0x5c: "TLOAD", 0x5d: "TSTORE", 0x49: "BLOBHASH", 0x4a: "BLOBBASEFEE" };
+  const found = [];
+  for (let i = 0; i < bytes.length; i++) {
+    const op = bytes[i];
+    if (banned[op]) found.push(banned[op]);
+    if (op >= 0x60 && op <= 0x7f) i += op - 0x5f;
+  }
+  if (found.length > 0) {
+    console.error(
+      `\n${artifact.name} uses Cancun opcodes (${[...new Set(found)].join(", ")}). ` +
+        "Metis Andromeda will revert on them. Compile with evmVersion shanghai."
+    );
+    process.exit(1);
+  }
+}
+
 const load = (name) => JSON.parse(readFileSync(path.join(artifacts, `${name}.json`), "utf8"));
 const arenaArtifact = load("MandateArena");
 const certArtifact = load("BreakCertificate");
+assertEvmCompatible(arenaArtifact);
+assertEvmCompatible(certArtifact);
 
 const models = JSON.parse(readFileSync(path.resolve(here, "../models.json"), "utf8"));
 const mandate = readFileSync(path.resolve(here, "../policy.txt"), "utf8").trim();

@@ -36,6 +36,8 @@ const input = {
   sources,
   settings: {
     optimizer: { enabled: true, runs: 200 },
+    // Metis Andromeda does not support Cancun opcodes (MCOPY). Target Shanghai.
+    evmVersion: "shanghai",
     outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"] } },
   },
 };
