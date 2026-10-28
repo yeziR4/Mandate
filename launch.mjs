@@ -26,6 +26,17 @@ function run(label, command, args, { optional = false } = {}) {
 console.log("Mandate launch\n");
 console.log(`node ${process.version} · cwd ${process.cwd()}`);
 
+const key = process.env.DEPLOYER_PRIVATE_KEY ?? "";
+const keyState = key.startsWith("0x") ? `set (${key.length} chars)` : "MISSING";
+console.log(`signer key   ${keyState}`);
+if (!key.startsWith("0x")) {
+  console.log("");
+  console.log("  Set it in THIS window, then re-run:");
+  console.log('    $env:DEPLOYER_PRIVATE_KEY="0x..."');
+  console.log("  Environment variables do not carry across shells or new windows.");
+  console.log("");
+}
+
 run("Contracts: build + test", "node", ["mandate/scripts/compile.mjs"]);
 run("Contracts: forge test", "forge", ["test", "--root", "mandate"], { optional: true });
 run("Preflight: chain, USDC, funding", "node", ["mandate/scripts/preflight.mjs"], { optional: true });
