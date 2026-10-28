@@ -35,7 +35,13 @@ const OPENING_PURSE = parseUnits(process.env.OPENING_PURSE_USDC ?? "5", 6);
 
 const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
 if (!privateKey || !privateKey.startsWith("0x")) {
-  console.error("DEPLOYER_PRIVATE_KEY missing");
+  const raw = process.env.DEPLOYER_PRIVATE_KEY ?? "";
+  console.error(
+    raw
+      ? `DEPLOYER_PRIVATE_KEY must start with 0x — got ${raw.length} characters, expected 66.`
+      : "DEPLOYER_PRIVATE_KEY missing"
+  );
+  if (raw) console.error(`fix: $env:DEPLOYER_PRIVATE_KEY = "0x" + ($env:DEPLOYER_PRIVATE_KEY -replace "^0x","")`);
   process.exit(1);
 }
 
