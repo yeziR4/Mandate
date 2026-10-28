@@ -7,7 +7,7 @@
  *
  * Optional: ARENA_ADDRESS, CERTIFICATE_ADDRESS, KEEPER_ADDRESS, DEPLOYER_ADDRESS, RPC_URL.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPublicClient, defineChain, formatUnits, http, keccak256, toHex } from "viem";
@@ -18,8 +18,15 @@ const env = (key, fallback = "") => process.env[key] ?? fallback;
 
 const RPC = env("RPC_URL", "https://andromeda.metis.io/?owner=1088");
 const USDC = env("USDC_ADDRESS", "0xEA32A96608495e54156Ae48931A7c20f0dcc1a21");
-const ARENA = env("ARENA_ADDRESS");
-const CERT = env("CERTIFICATE_ADDRESS");
+
+// Fall back to the deployment record so a second preflight does not need env vars.
+const deploymentPath = path.resolve(here, `../deployments/${env("DEPLOYMENT_NAME", "metis")}.json`);
+const recorded = existsSync(deploymentPath)
+  ? JSON.parse(readFileSync(deploymentPath, "utf8"))
+  : undefined;
+
+const ARENA = env("ARENA_ADDRESS", recorded?.contracts?.MandateArena ?? "");
+const CERT = env("CERTIFICATE_ADDRESS", recorded?.contracts?.BreakCertificate ?? "");
 const KEEPER = env("KEEPER_ADDRESS");
 const DEPLOYER =
   env("DEPLOYER_ADDRESS") ||
@@ -177,17 +184,28 @@ async function main() {
       sameOrder ? ok("model order", "keeper/models.json matches chain order") : bad("model order", "keeper/models.json is out of order");
 
       let funded = 0n;
-      for (let index = 0; index < Number(count); index++) {
-        const model = await client.readContract({
-          address: ARENA,
-          abi: arenaAbi,
-          functionName: "getModel",
-          args: [index],
-        });
-        if (model.label !== models[index]) bad(`model ${index} label`, `${model.label}, expected ${models[index]}`);
-        funded += model.purse;
+      try {
+        for (let index = 0; index < Number(count); index++) {
+          const model = await client.readContract({
+            address: ARENA,
+            abi: arenaAbi,
+            functionName: "getModel",
+            args: [index],
+          });
+          if (model.label !== models[index]) bad(`model ${index} label`, `${model.label}, expected ${models[index]}`);
+          if (!model.configured) bad(`model ${index}`, "not configured");
+          funded += model.purse;
+        }
+        ok("model registry", `${count} models readable`);
+      } catch {
+        bad(
+          "model registry",
+          "getModel reverted — the deployed bytecode does not match mandate/artifacts; redeploy"
+        );
       }
-      funded > 0n ? ok("purses funded", `$${formatUnits(funded, 6)} under custody`) : bad("purses funded", "every purse is empty");
+      funded > 0n
+        ? ok("purses funded", `$${formatUnits(funded, 6)} under custody`)
+        : ok("purses funded", "$0 — bounties settle at close");
     }
   } else {
     bad("arena address", "ARENA_ADDRESS not set (expected before deploy)");

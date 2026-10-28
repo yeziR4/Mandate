@@ -36,7 +36,7 @@ const input = {
   sources,
   settings: {
     optimizer: { enabled: true, runs: 200 },
-    outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "metadata"] } },
+    outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"] } },
   },
 };
 
@@ -61,7 +61,13 @@ for (const [file, contracts] of Object.entries(output.contracts ?? {})) {
     fs.writeFileSync(
       target,
       JSON.stringify(
-        { name, source: file, abi: artifact.abi, bytecode: "0x" + artifact.evm.bytecode.object },
+        {
+          name,
+          source: file,
+          abi: artifact.abi,
+          bytecode: "0x" + artifact.evm.bytecode.object,
+          deployedBytecode: "0x" + artifact.evm.deployedBytecode.object,
+        },
         null,
         2
       )

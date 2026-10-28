@@ -1,0 +1,27 @@
+{
+  "chainId": 1088,
+  "deployment": "metis",
+  "deployedAt": "2026-10-28T14:49:06.229Z",
+  "deployer": "0xd20b6ecb626DF04064771483bCD4C8aa210fbEC7",
+  "keeper": "0xd20b6ecb626DF04064771483bCD4C8aa210fbEC7",
+  "usdc": "0xEA32A96608495e54156Ae48931A7c20f0dcc1a21",
+  "attemptFee": "0",
+  "cooldownSeconds": 30,
+  "mandateHash": "0x93440b9f1b1949ae3d29ba9cfce61a3e1a335b10ae77a4f9af050a968f6c7698",
+  "contracts": {
+    "MandateArena": "0x57783fa6bc4a372d188cb276894b88c78cc9c4ad",
+    "BreakCertificate": "0xff4a373acae0fd625c8c14c17cb758ef1f7c0fc3"
+  },
+  "models": [
+    "GPT",
+    "Claude",
+    "Gemini",
+    "Grok",
+    "DeepSeek",
+    "GLM",
+    "Qwen",
+    "Llama",
+    "Mistral",
+    "Kimi"
+  ]
+}

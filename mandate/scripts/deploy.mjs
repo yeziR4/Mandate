@@ -30,7 +30,7 @@ const artifacts = path.resolve(here, "../artifacts");
 
 const RPC_URL = process.env.RPC_URL ?? "https://andromeda.metis.io/?owner=1088";
 const ATTEMPT_FEE = parseUnits(process.env.ATTEMPT_FEE_USDC ?? "0", 6);
-const COOLDOWN = 30n;
+const COOLDOWN = BigInt(process.env.COOLDOWN ?? "600");
 const OPENING_PURSE = parseUnits(process.env.OPENING_PURSE_USDC ?? "5", 6);
 
 const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -38,7 +38,7 @@ if (!privateKey || !privateKey.startsWith("0x")) {
   const raw = process.env.DEPLOYER_PRIVATE_KEY ?? "";
   console.error(
     raw
-      ? `DEPLOYER_PRIVATE_KEY must start with 0x — got ${raw.length} characters, expected 66.`
+      ? `DEPLOYER_PRIVATE_KEY must start with 0x ï¿½ got ${raw.length} characters, expected 66.`
       : "DEPLOYER_PRIVATE_KEY missing"
   );
   if (raw) console.error(`fix: $env:DEPLOYER_PRIVATE_KEY = "0x" + ($env:DEPLOYER_PRIVATE_KEY -replace "^0x","")`);
@@ -144,6 +144,42 @@ if (process.env.FUND_PURSES === "true") {
 
 await call(arena, arenaArtifact.abi, "setOpen", [true]);
 console.log("\narena open\n");
+
+// Self-check: a deployment that cannot answer its own getters is not a deployment.
+const [modelsOnchain, scenarioOnchain, bountyOnchain, openOnchain, feeOnchain, keeperOnchain] =
+  await Promise.all([
+    publicClient.readContract({ address: arena, abi: arenaArtifact.abi, functionName: "modelCount" }),
+    publicClient.readContract({ address: arena, abi: arenaArtifact.abi, functionName: "scenario" }),
+    publicClient.readContract({ address: arena, abi: arenaArtifact.abi, functionName: "bounty" }),
+    publicClient.readContract({ address: arena, abi: arenaArtifact.abi, functionName: "open" }),
+    publicClient.readContract({ address: arena, abi: arenaArtifact.abi, functionName: "attemptFee" }),
+    publicClient.readContract({ address: arena, abi: arenaArtifact.abi, functionName: "keeper" }),
+  ]);
+
+const first = await publicClient.readContract({
+  address: arena,
+  abi: arenaArtifact.abi,
+  functionName: "getModel",
+  args: [0],
+});
+
+const problems = [];
+if (modelsOnchain !== BigInt(models.length)) problems.push(`modelCount ${modelsOnchain}`);
+if (scenarioOnchain !== 1n) problems.push(`scenario ${scenarioOnchain}`);
+if (bountyOnchain !== bounty) problems.push(`bounty ${bountyOnchain}`);
+if (!openOnchain) problems.push("arena not open");
+if (feeOnchain !== ATTEMPT_FEE) problems.push(`fee ${feeOnchain}`);
+if (keeperOnchain.toLowerCase() !== keeper.toLowerCase()) problems.push(`keeper ${keeperOnchain}`);
+if (!first.configured) problems.push("model 0 not configured");
+
+if (problems.length > 0) {
+  console.error("\nSELF-CHECK FAILED â€” do not use this deployment:");
+  for (const problem of problems) console.error(`  ${problem}`);
+  console.error("\nThe deployed contract does not match mandate/artifacts. Re-run compile, then deploy.");
+  process.exit(1);
+}
+
+console.log(`self-check   models ${modelsOnchain}, scenario ${scenarioOnchain}, bounty ${bountyOnchain}, fee ${feeOnchain}, model0 "${first.label}"`);
 
 const out = {
   chainId: 1088,
