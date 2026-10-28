@@ -6,7 +6,7 @@
  *   $env:DEPLOYER_PRIVATE_KEY="0x..."
  *   $env:USDC_ADDRESS="0x..."            # m.USDC on Andromeda — confirm from Metis docs
  *   $env:KEEPER_ADDRESS="0x..."          # optional, defaults to deployer
- *   $env:FUND_PURSES="true"              # optional, sends $5 per model
+ *                 # optional, sends $5 per model
  *   node mandate/scripts/deploy.mjs
  *
  * Nothing here is audited. Pilot money only.

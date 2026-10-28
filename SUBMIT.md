@@ -56,8 +56,7 @@ git push -u origin main
 
 - [ ] Repo is **public** and shows `mandate/`, `keeper/`, `web/`, `SUBMIT.md`
 - [ ] Fresh wallet created — deployer, keeper, and the form's reward wallet
-- [ ] ~$55 m.USDC + ~0.3 METIS on Andromeda. Confirm the m.USDC address from the Metis docs
-      before sending anything. Do not guess it.
+- [ ] ~0.1 METIS on Andromeda for gas. **No m.USDC** � bounties settle at close, nothing is escrowed.
 
 ## Block 2 — 2 hours: deploy
 
@@ -65,7 +64,6 @@ git push -u origin main
 $env:DEPLOYER_PRIVATE_KEY="0x…"
 $env:USDC_ADDRESS="0x…"
 $env:COOLDOWN="600"
-$env:FUND_PURSES="true"
 node mandate/scripts/deploy.mjs
 ```
 

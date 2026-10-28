@@ -111,19 +111,25 @@ async function main() {
       ]);
       decimals === 6 ? ok("usdc decimals", "6") : bad("usdc decimals", `${decimals}, contract assumes 6`);
       symbol === "m.USDC" ? ok("usdc symbol", symbol) : bad("usdc symbol", `${symbol}, expected m.USDC`);
-      if (DEPLOYER) {
-        const needs = 10n * 5_000_000n + 1_000_000n;
+
+      // Bounties settle at season close, so the deployer does not need USDC at deploy time.
+      // Only an explicitly funded purse run needs a balance.
+      if (process.env.FUND_PURSES === "true") {
+        const needs = 10n * 5_000_000n;
         balance >= needs
-          ? ok("usdc balance", `${formatUnits(balance, 6)} (need 51 for ten purses + fees)`)
-          : bad("usdc balance", `${formatUnits(balance, 6)} — need at least 51`);
+          ? ok("usdc balance", `${formatUnits(balance, 6)} — funding ten purses`)
+          : bad("usdc balance", `${formatUnits(balance, 6)} — need ${formatUnits(needs, 6)} to fund purses`);
+      } else {
+        ok("usdc balance", `${formatUnits(balance, 6)} — not required, bounties settle at close`);
       }
     }
   }
 
-  // 3. gas
+  // 3. gas: contracts are deployed and configured on mainnet, so the deployer needs METIS.
+  // No m.USDC is required — bounties settle at close, not from escrow.
   if (DEPLOYER) {
     const gas = await client.getBalance({ address: DEPLOYER });
-    const enough = gas > 10n ** 17n; // 0.1 METIS is plenty for a pilot
+    const enough = gas > 5n * 10n ** 16n; // ~0.05 METIS covers two deploys + configuration
     enough
       ? ok("gas balance", `${Number(formatUnits(gas, 18)).toFixed(4)} METIS`)
       : bad("gas balance", `${Number(formatUnits(gas, 18)).toFixed(4)} METIS — deploy needs gas`);
