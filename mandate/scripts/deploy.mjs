@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import {
   createPublicClient,
   createWalletClient,
+  fallback,
   http,
   keccak256,
   toHex,
@@ -57,8 +58,9 @@ const account = privateKeyToAccount(privateKey);
 const keeper = process.env.KEEPER_ADDRESS ?? account.address;
 
 const chain = { ...metis, rpcUrls: { default: { http: [RPC_URL] } } };
-const publicClient = createPublicClient({ chain, transport: http(RPC_URL) });
-const wallet = createWalletClient({ account, chain, transport: http(RPC_URL) });
+const transport = fallback([http(RPC_URL), http("https://metis.drpc.org")]);
+const publicClient = createPublicClient({ chain, transport });
+const wallet = createWalletClient({ account, chain, transport });
 
 const load = (name) => JSON.parse(readFileSync(path.join(artifacts, `${name}.json`), "utf8"));
 const arenaArtifact = load("MandateArena");
@@ -76,10 +78,29 @@ async function deploy(artifact, args) {
     account,
     chain,
   });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  if (!receipt.contractAddress) throw new Error("no contract address");
-  console.log(`deployed ${artifact.name} -> ${receipt.contractAddress}`);
-  return receipt.contractAddress;
+  console.log(`sent ${artifact.name} deploy ${hash}`);
+
+  try {
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      timeout: 240_000,
+      pollingInterval: 2_500,
+    });
+    if (!receipt.contractAddress) throw new Error("no contract address in receipt");
+    console.log(`deployed ${artifact.name} -> ${receipt.contractAddress}`);
+    return receipt.contractAddress;
+  } catch (cause) {
+    // distinguish "slow" from "the node never saw it"
+    const receipt = await publicClient.getTransactionReceipt({ hash }).catch(() => null);
+    if (receipt?.contractAddress) {
+      console.log(`deployed ${artifact.name} -> ${receipt.contractAddress} (after timeout)`);
+      return receipt.contractAddress;
+    }
+    console.error(`\n${artifact.name} deploy was not accepted by the RPC (${hash}).`);
+    console.error("The transaction is not in the mempool, so nothing was spent on contracts.");
+    console.error("Re-run with CERTIFICATE_ADDRESS set to reuse the certificate already deployed.");
+    throw cause;
+  }
 }
 
 async function call(address, abi, functionName, args) {
@@ -101,7 +122,17 @@ console.log(`rpc      ${RPC_URL}\n`);
 
 // The certificate starts owned by the deployer so the pair can be deployed in either
 // order, then the deployer hands minting rights to the arena and loses them for good.
-const certificate = await deploy(certArtifact, [account.address]);
+// Reuse an already-deployed certificate if one is supplied — a dropped arena transaction
+// should not cost you a second certificate.
+const existingCertificate = process.env.CERTIFICATE_ADDRESS;
+const certificate =
+  existingCertificate && existingCertificate.startsWith("0x")
+    ? existingCertificate
+    : await deploy(certArtifact, [account.address]);
+if (existingCertificate) {
+  console.log(`reusing certificate ${existingCertificate}`);
+}
+
 const arena = await deploy(arenaArtifact, [usdc, certificate, keeper, ATTEMPT_FEE, COOLDOWN]);
 
 await call(certificate, certArtifact.abi, "setArena", [arena]);

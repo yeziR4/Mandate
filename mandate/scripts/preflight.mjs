@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPublicClient, defineChain, formatUnits, http, keccak256, toHex } from "viem";
+import { createPublicClient, defineChain, fallback, formatUnits, http, keccak256, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -41,7 +41,10 @@ const chain = defineChain({
   rpcUrls: { default: { http: [RPC] } },
 });
 
-const client = createPublicClient({ chain, transport: http(RPC, { timeout: 15_000 }) });
+const client = createPublicClient({
+  chain,
+  transport: fallback([http(RPC, { timeout: 15_000 }), http("https://metis.drpc.org", { timeout: 15_000 })]),
+});
 
 const results = [];
 const ok = (label, detail = "") => results.push({ pass: true, label, detail });
