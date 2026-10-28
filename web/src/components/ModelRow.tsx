@@ -3,7 +3,7 @@ import type { Model } from "../lib/arena";
 import { pad, timeAgo, usd } from "../lib/format";
 import { Pill } from "./Pill";
 
-export default function ModelRow({ model }: { model: Model }) {
+export default function ModelRow({ model, bounty }: { model: Model; bounty: bigint }) {
   return (
     <div className={`board__row${model.broken ? " board__row--broken" : ""}`}>
       <span className="board__id">{pad(model.id)}</span>
@@ -18,7 +18,7 @@ export default function ModelRow({ model }: { model: Model }) {
       </div>
 
       <span className={`board__purse${model.broken ? " board__purse--dead" : ""}`}>
-        {model.broken ? "paid" : usd(model.purse)}
+        {model.broken ? "claimed" : usd(bounty)}
       </span>
 
       <span className="board__att">{model.attempts.toLocaleString("en-US")}</span>

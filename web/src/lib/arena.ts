@@ -62,6 +62,7 @@ export interface Certificate {
   owner: Address;
   label: string;
   attemptId?: bigint;
+  bounty?: bigint;
 }
 
 export interface Board {
@@ -71,6 +72,8 @@ export interface Board {
   open: boolean;
   attemptCount: bigint;
   scenario: number;
+  /** What a broken model is owed, recorded in the certificate at mint time. */
+  bounty: bigint;
 }
 
 const asModel = (id: number, raw: {
@@ -95,13 +98,14 @@ const asModel = (id: number, raw: {
 export async function loadBoard(): Promise<Board> {
   if (!ARENA_ADDRESS || PREVIEW) return previewBoard;
 
-  const [count, fee, cooldown, open, attempts, scenario] = await Promise.all([
+  const [count, fee, cooldown, open, attempts, scenario, bounty] = await Promise.all([
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "modelCount" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "attemptFee" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "cooldown" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "open" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "attemptCount" }),
     publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "scenario" }),
+    publicClient.readContract({ address: ARENA_ADDRESS, abi: arenaAbi, functionName: "bounty" }),
   ]);
 
   const ids = Array.from({ length: Number(count) }, (_, i) => i);
@@ -123,6 +127,7 @@ export async function loadBoard(): Promise<Board> {
     open,
     attemptCount: attempts,
     scenario: Number(scenario),
+    bounty,
   };
 }
 
@@ -206,6 +211,7 @@ export async function loadCertificates(): Promise<Certificate[]> {
         owner,
         label,
         attemptId: cert[4],
+        bounty: cert[5],
       };
     })
   );

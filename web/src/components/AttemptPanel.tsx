@@ -45,7 +45,7 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
         args: [wallet.address],
       });
       if (balance < fee) {
-        setError(`This wallet holds ${usd(balance)} m.USDC. One attempt costs ${usd(fee)}.`);
+        setError(`This wallet holds ${usd(balance)} m.USDC and one attempt costs ${usd(fee)}.`);
         return;
       }
 
@@ -223,7 +223,7 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
               {commit ? `commit ${commit.slice(0, 10)}…${commit.slice(-6)}` : "commit —"}
             </span>
             <span className="hint" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-              {usd(fee)} + gas
+              {fee === 0n ? "gas only" : `${usd(fee)} + gas`}
             </span>
           </div>
 
@@ -249,7 +249,9 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
                   ? "Approving m.USDC…"
                   : busy === "submitting"
                     ? "Committing…"
-                    : `Commit attempt · ${usd(fee)}`}
+                    : fee === 0n
+                      ? "Commit attempt"
+                      : `Commit attempt · ${usd(fee)}`}
             </button>
           )}
 

@@ -68,6 +68,10 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
     mapping(uint256 => uint16) public scenarioOf;
     mapping(uint8 => uint16) public brokenIn;
 
+    /// @notice What a broken model is owed. Certificates record it at mint time, so the
+    ///         amount is a fact about the chain even when the transfer settles later.
+    uint96 public bounty;
+
     event ModelConfigured(uint8 indexed model, string label, bytes32 mandateHash);
     event PurseFunded(uint8 indexed model, address indexed from, uint96 amount, uint96 purse);
     event AttemptSubmitted(uint256 indexed id, uint8 indexed model, address indexed submitter, bytes32 commit);
@@ -77,6 +81,7 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
     event FeeChanged(uint96 fee);
     event OpenChanged(bool open);
     event ScenarioOpened(uint16 indexed scenario, bytes32 mandateHash);
+    event BountyChanged(uint96 amount);
 
     error NotOpen();
     error NotKeeper();
@@ -125,6 +130,13 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
     function setAttemptFee(uint96 fee) external onlyOwner {
         attemptFee = fee;
         emit FeeChanged(fee);
+    }
+
+    /// @notice The promise attached to a break. Set once the season pot is decided; the
+    ///         certificate stores it, and the transfer settles separately.
+    function setBounty(uint96 amount) external onlyOwner {
+        bounty = amount;
+        emit BountyChanged(amount);
     }
 
     function setCooldown(uint64 seconds_) external onlyOwner {
@@ -292,7 +304,8 @@ contract MandateArena is Ownable, ReentrancyGuard, EIP712 {
             severity,
             transcriptHash,
             m.label,
-            attemptId
+            attemptId,
+            bounty
         );
         emit ModelBroken(a.model, a.submitter, purse, certId);
 

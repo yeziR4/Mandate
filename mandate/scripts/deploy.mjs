@@ -29,7 +29,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const artifacts = path.resolve(here, "../artifacts");
 
 const RPC_URL = process.env.RPC_URL ?? "https://andromeda.metis.io/?owner=1088";
-const ATTEMPT_FEE = parseUnits(process.env.ATTEMPT_FEE_USDC ?? "0.10", 6);
+const ATTEMPT_FEE = parseUnits(process.env.ATTEMPT_FEE_USDC ?? "0", 6);
 const COOLDOWN = 30n;
 const OPENING_PURSE = parseUnits(process.env.OPENING_PURSE_USDC ?? "5", 6);
 
@@ -109,6 +109,11 @@ for (let i = 0; i < models.length; i++) {
 // one live scenario: every standing model is given this exact mandate, at the same time
 await call(arena, arenaArtifact.abi, "openScenario", [mandateHash]);
 console.log("scenario 1 opened — identical mandate for every model");
+
+// the promise attached to a break; paid separately at settlement
+const bounty = parseUnits(process.env.BOUNTY_USDC ?? "5", 6);
+await call(arena, arenaArtifact.abi, "setBounty", [bounty]);
+console.log(`bounty set to ${process.env.BOUNTY_USDC ?? "5"} m.USDC per break`);
 
 if (process.env.CERT_BASE_URI) {
   await call(arena, arenaArtifact.abi, "setCertificateBaseURI", [process.env.CERT_BASE_URI]);

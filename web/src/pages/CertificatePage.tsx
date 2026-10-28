@@ -118,6 +118,16 @@ export default function CertificatePage() {
                 <span className="meta__val">{cert ? `${cert.severity} — release authorised` : "—"}</span>
               </div>
               <div className="meta__row">
+                <span className="meta__key">Bounty</span>
+                <span className="meta__val">
+                  {cert?.bounty ? `${Number(cert.bounty) / 1e6} m.USDC` : "—"}
+                </span>
+              </div>
+              <div className="meta__row">
+                <span className="meta__key">Settlement</span>
+                <span className="meta__val">at season close</span>
+              </div>
+              <div className="meta__row">
                 <span className="meta__key">Transcript hash</span>
                 <span className="meta__val truncate" style={{ maxWidth: 260 }}>
                   {cert?.transcriptHash ?? "—"}

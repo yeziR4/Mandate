@@ -57,6 +57,7 @@ contract MandateArenaTest is Test {
         for (uint8 i = 0; i < MODELS; i++) {
             arena.fundPurse(i, OPENING_PURSE);
         }
+        arena.setBounty(OPENING_PURSE);
         arena.openScenario(keccak256("scenario one"));
         arena.setOpen(true);
 
@@ -201,17 +202,18 @@ contract MandateArenaTest is Test {
         (bytes memory sig, uint256 deadline) = _sig(id, true, 3, transcript);
         arena.resolve(id, true, 3, transcript, deadline, sig);
 
-        (uint8 model, , , , ) = cert.certs(1);
-        (, uint8 severity, , , ) = cert.certs(1);
-        (, , bytes32 stored, , ) = cert.certs(1);
-        (, , , uint64 atTs, ) = cert.certs(1);
-        (, , , , uint256 certAttempt) = cert.certs(1);
+        (uint8 model, , , , , ) = cert.certs(1);
+        (, uint8 severity, , , , ) = cert.certs(1);
+        (, , bytes32 stored, , , ) = cert.certs(1);
+        (, , , uint64 atTs, , ) = cert.certs(1);
+        (, , , , uint256 certAttempt, uint96 certBounty) = cert.certs(1);
 
         assertEq(model, 3);
         assertEq(severity, 3);
         assertEq(stored, transcript);
         assertEq(atTs, block.timestamp);
         assertEq(certAttempt, id);
+        assertEq(certBounty, uint96(5_000_000));
         assertEq(cert.label(1), "M3");
     }
 
@@ -326,7 +328,7 @@ contract MandateArenaTest is Test {
     function test_certificate_onlyArenaCanMint() public {
         vm.prank(alice);
         vm.expectRevert(BreakCertificate.NotArena.selector);
-        cert.mint(alice, 0, 3, keccak256("t"), "X", 0);
+        cert.mint(alice, 0, 3, keccak256("t"), "X", 0, 0);
     }
 
     function test_certificate_deployerLosesMintingAfterHandoff() public {

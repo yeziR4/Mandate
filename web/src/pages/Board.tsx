@@ -37,7 +37,6 @@ export default function Board() {
   const models = board?.models ?? [];
   const standing = models.filter((model) => !model.broken).length;
   const taken = models.length - standing;
-  const atRisk = models.reduce((sum, model) => sum + (model.broken ? 0n : model.purse), 0n);
 
   return (
     <>
@@ -48,14 +47,15 @@ export default function Board() {
         </div>
 
         <h1 className="hero__title">
-          Ten models hold the money.<br />
-          <em>Talk one out of it.</em>
+          Ten models say no.
+          <br />
+          <em>Make one say yes.</em>
         </h1>
 
         <p className="hero__lede">
-          Each model runs a treasury agent with a real purse and the same written mandate. Break
-          the mandate, take the purse, keep a numbered certificate. Every attempt is a transaction;
-          every verdict is signed and published.
+          Each model runs a treasury agent under the same written mandate. Break the mandate and
+          you take the certificate immediately — the bounty settles at the close of the season.
+          Every attempt is a transaction; every verdict is signed and published.
         </p>
 
         <div className="hero__actions">
@@ -72,7 +72,7 @@ export default function Board() {
       <div className="shell">
         <StatStrip
           stats={[
-            { label: "Under custody", value: usd(atRisk), note: "across standing purses" },
+            { label: "Bounty per break", value: usd(board?.bounty ?? 0n), note: "settles at season close" },
             {
               label: "Standing",
               value: `${standing} / ${models.length || 10}`,
@@ -98,14 +98,14 @@ export default function Board() {
             </h2>
           </div>
           <div className="sechead__meta">
-            <div>attempt {usd(board?.fee ?? 0n)}</div>
+            <div>{(board?.fee ?? 0n) === 0n ? "attempt free � gas only" : `attempt ${usd(board?.fee ?? 0n)}`}</div>
             <div>{board ? `${Math.round(board.cooldown / 60)} min cooldown` : "—"}</div>
           </div>
         </div>
 
         <p className="hint" style={{ marginTop: -6, marginBottom: 18 }}>
           Every standing model is given the identical mandate in the same window, so the order
-          they fall in is a like-for-like comparison. A model that breaks is out for the season.
+          they fall in is a like-for-like comparison. A model that breaks is out for the season; the bounty on its certificate settles at close.
         </p>
 
         {error && (
@@ -121,7 +121,7 @@ export default function Board() {
                 <span>№</span>
                 <span>Model</span>
                 <span>Status</span>
-                <span>Purse</span>
+                <span>Bounty</span>
                 <span>Attempts</span>
                 <span>Taken</span>
                 <span />
@@ -139,7 +139,7 @@ export default function Board() {
                       <span />
                     </div>
                   ))
-                : models.map((model) => <ModelRow key={model.id} model={model} />)}
+                : models.map((model) => <ModelRow key={model.id} model={model} bounty={board?.bounty ?? 0n} />)}
             </div>
 
             <p className="hint" style={{ marginTop: 16 }}>
@@ -158,9 +158,9 @@ export default function Board() {
               </div>
               <div className="steps">
                 {[
-                  ["01", "Commit", "Hash your message, pay the fee. The hash proves the words existed first."],
+                  ["01", "Commit", "Hash your message and commit it. The hash proves the words existed first."],
                   ["02", "Judge", "The keeper runs it in character and scores the transcript against the rubric."],
-                  ["03", "Settle", "A signed verdict is relayed by anyone. A break pays the purse and mints a certificate."],
+                  ["03", "Settle", "A signed verdict is relayed by anyone. A break mints a certificate recording the bounty owed."],
                 ].map(([no, title, body]) => (
                   <div className="steps__row" key={no}>
                     <span className="kicker" style={{ paddingTop: 2 }}>{no}</span>
@@ -189,7 +189,7 @@ export default function Board() {
           </div>
 
           <div className="stack" style={{ gap: 14 }}>
-            <span className="kicker">Why a purse</span>
+            <span className="kicker">Why a bounty</span>
             <p className="muted" style={{ margin: 0, lineHeight: 1.7, fontSize: 14.5 }}>
               A claim that an agent cannot be talked out of its money is unfalsifiable when the
               operator holds the transcripts. A real purse makes the test honest: people try what

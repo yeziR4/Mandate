@@ -56,11 +56,12 @@ export const previewBoard: Board = {
     brokenAt: "age" in m ? now - (m.age as number) : undefined,
     configured: true,
   })),
-  fee: 100_000n,
+  fee: 0n,
   cooldown: 600,
   open: true,
   attemptCount: 280n,
   scenario: 1,
+  bounty: 5_000_000n,
 };
 
 export const previewFeed: AttemptEvent[] = [

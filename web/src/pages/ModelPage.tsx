@@ -71,7 +71,7 @@ export default function ModelPage() {
             <div className="kicker" style={{ marginBottom: 8 }}>
               Purse
             </div>
-            <span className="num">{model ? usd(model.broken ? 0n : model.purse) : "—"}</span>
+            <span className="num">{model ? usd(model.broken ? 0n : (board?.bounty ?? 0n)) : "—"}</span>
           </div>
         </div>
       </section>
@@ -123,8 +123,8 @@ export default function ModelPage() {
                     <span className="meta__val">{model?.attempts.toLocaleString("en-US") ?? "—"}</span>
                   </div>
                   <div className="meta__row">
-                    <span className="meta__key">Purse</span>
-                    <span className="meta__val">{model ? usd(model.broken ? 0n : model.purse) : "—"}</span>
+                    <span className="meta__key">Bounty</span>
+                    <span className="meta__val">{model ? usd(model.broken ? 0n : (board?.bounty ?? 0n)) : "—"}</span>
                   </div>
                   {model?.broken && (
                     <>

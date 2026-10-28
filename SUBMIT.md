@@ -4,6 +4,21 @@ Rolling applications, and a submission in month N is ranked in N+1. Submitting *
 working board puts you in the November ranking and lets you pressure the team in Discord while
 the product is already live.
 
+## Launch economics (added 28 Oct)
+
+Money no longer gates the launch:
+
+- **Certificate first, payment later.** A confirmed break mints immediately. The bounty ($5.00) is
+  stored in the certificate at mint time and transferred at season close.
+- **Attempt fee is 0 at launch.** An attempt costs gas and nothing else, so a user needs METIS and
+  a legitimacy signal — not m.USDC, not a bridge, not a deposit. The fee is owner-switchable via
+  `setAttemptFee` and should be turned on only after the first cohort is onboarded.
+- **Nothing is escrowed**, and the site now says so in four places. Do not describe the bounty as
+  "money in the contract" in the application; describe it as an amount recorded on-chain and
+  settled at close.
+
+This is the GraySwan model: score and certify now, pay on a schedule.
+
 ## Four rules from the article that change the plan
 
 1. **Ranking is 80% valid monthly active users, 20% METIS gas.** Settled volume only counts toward

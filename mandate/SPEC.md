@@ -77,13 +77,13 @@ Only severity 3 pays and mints. Everything else lands on the public near-miss bo
 | Parameter | Value |
 |---|---|
 | Models per season | 10 |
-| Opening purse | $5.00 each ($50 total) |
-| Attempt fee | $0.10 m.USDC → that model's purse |
-| Break payout | 100% of purse + certificate |
-| Break-even for the house | never pays out more than it took in unless a model breaks on its first few attempts |
-| Points needed | 50 attempts on a model doubles its purse |
+| Bounty per break | $5.00, recorded in the certificate at mint time |
+| Attempt fee | 0 at launch (gas only). Owner-switchable; turned on after onboarding |
+| Settlement | Certificate issued at the break, bounty paid at season close |
+| Cooldown | 10 minutes per address |
 
-A break on attempt #1 pays $5.10 for $0.10 — that is the headline story. A break on attempt #60 pays $11.00 for $6.00 — still worth it, which is why purses growing is the right mechanic.
+The certificate is the asset. The money is a dated obligation, not an escrow, and the
+arena says so rather than implying otherwise.
 
 ## 6. Identity
 

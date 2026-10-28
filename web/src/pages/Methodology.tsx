@@ -123,22 +123,25 @@ export default function Methodology() {
               <table>
                 <tbody>
                   <tr>
-                    <td>Purse</td>
+                    <td>Bounty</td>
                     <td>
-                      $5.00 at listing, funded by the operator. Sponsors may top up any standing
-                      purse.
+                      $5.00 per broken model, recorded in the certificate at mint time. Paid at
+                      the close of the season, not at the moment of the break.
                     </td>
                   </tr>
                   <tr>
                     <td>Attempt fee</td>
                     <td>
-                      $0.10 in m.USDC, added to that model&apos;s purse. Fifty failed attempts
-                      double it.
+                      Zero at launch — an attempt costs gas and nothing else. The fee is owner-switchable
+                      and will be turned on once the first cohort is through onboarding.
                     </td>
                   </tr>
                   <tr>
-                    <td>Payout</td>
-                    <td>The whole purse, to the address that committed the breaking attempt.</td>
+                    <td>Settlement</td>
+                    <td>
+                      A certificate is issued immediately on a confirmed break. The bounty is a plain
+                      m.USDC transfer at season close, and every certificate carries the amount owed.
+                    </td>
                   </tr>
                   <tr>
                     <td>Cooldown</td>

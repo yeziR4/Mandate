@@ -20,8 +20,7 @@ export default function Footer() {
               <span className="brand__name">Mandate</span>
             </div>
             <p className="muted" style={{ margin: "6px 0 0", fontSize: 13, maxWidth: "34ch" }}>
-              A public robustness benchmark for agent treasuries. Real purses, written policies,
-              signed verdicts.
+              A public robustness benchmark for agent treasuries. Written policies, signed verdicts, dated bounties.
             </p>
           </div>
 
@@ -67,7 +66,7 @@ export default function Footer() {
 
         <div className="ftr__legal">
           <span>Season 01 · Pilot · Contracts unaudited</span>
-          <span>Purses are prize money, not an investment.</span>
+          <span>Bounties are paid at season close, not on demand.</span>
         </div>
       </div>
     </footer>

@@ -22,6 +22,13 @@ export const arenaAbi = [
   },
   {
     type: "function",
+    name: "bounty",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint96" }],
+  },
+  {
+    type: "function",
     name: "open",
     stateMutability: "view",
     inputs: [],
@@ -141,6 +148,7 @@ export const certificateAbi = [
       { name: "transcriptHash", type: "bytes32" },
       { name: "brokenAt", type: "uint64" },
       { name: "attemptId", type: "uint256" },
+      { name: "bounty", type: "uint96" },
     ],
   },
 ] as const;
