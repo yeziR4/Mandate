@@ -1,6 +1,6 @@
 # Metis Rise — application, filled
 
-Everything below is ready to paste except the three items marked **[FILL]**, which must be
+Everything below is ready to paste. The three fields that used to be **[FILL]** now carry the deployed values:
 real before you submit: the repo, the deployed addresses, and the live URL. Do not submit
 placeholders — the contract list is the field they check hardest.
 
@@ -22,15 +22,15 @@ Consumer
 
 ### GitHub repository
 
-**[FILL]** e.g. `https://github.com/<you>/mandate` — public, with `mandate/contracts`, `mandate/SPEC.md`, and the referee service.
+https://github.com/yeziR4/Mandate
 
 ### Smart contract address(es) on Metis Andromeda Mainnet
 
 Deploy first, then paste:
 
 ```
-0x… MandateArena          (model registry, purses, attempt commits, keeper verdicts, payouts)
-0x… BreakCertificate      (ERC-721, one per break, numbered)
+0x0c1fccb074913ea6ab337ca8a6c1d6fa4c40376d  MandateArena
+0x0441b60c91bdd62f752a3bd8186ba8c0f7cd03cb  BreakCertificate
 ```
 
 No factory and no proxy: both are immutable, deployed once, no upgrade path. Every purse,
@@ -39,11 +39,11 @@ complete gas and volume picture — nothing happens off-contract except the mode
 
 ### Live dApp / Product URL
 
-**[FILL]** — the board of ten models, the purses, the attempt flow, the certificate gallery.
+https://mandate-delta-three.vercel.app
 
 ### Website
 
-**[FILL]** — same domain is fine.
+https://mandate-delta-three.vercel.app
 
 ### Which problems does your project solve on-chain?
 
@@ -51,7 +51,7 @@ complete gas and volume picture — nothing happens off-contract except the mode
 
 ### ERC20 wallet address for receiving rewards
 
-**[FILL]** — a fresh address on 1088 that you control, not a CEX deposit address and not one you've reused on other chains.
+0xd20b6ecb626DF04064771483bCD4C8aa210fbEC7
 
 ---
 
