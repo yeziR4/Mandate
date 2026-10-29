@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPublicClient, createWalletClient, defineChain, http } from "viem";
+import { createPublicClient, createWalletClient, defineChain, fallback, http } from "viem";
 import type { Address, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -65,10 +65,17 @@ export const chain = defineChain({
   rpcUrls: { default: { http: [config.rpcUrl] } },
 });
 
-export const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) });
+// Two providers, both retried. A single free RPC times out under a burst of calls
+// (estimate → send → poll), which is exactly what relaying a verdict does.
+const transport = fallback([
+  http(config.rpcUrl, { retryCount: 3, retryDelay: 200, timeout: 20_000 }),
+  http("https://andromeda.metis.io/?owner=1088", { retryCount: 3, retryDelay: 200, timeout: 20_000 }),
+]);
+
+export const publicClient = createPublicClient({ chain, transport });
 export const keeperAccount = config.keeperKey ? privateKeyToAccount(config.keeperKey) : undefined;
 export const walletClient = keeperAccount
-  ? createWalletClient({ account: keeperAccount, chain, transport: http(config.rpcUrl) })
+  ? createWalletClient({ account: keeperAccount, chain, transport })
   : undefined;
 
 export const arenaAbi = [
