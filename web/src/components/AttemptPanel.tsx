@@ -38,6 +38,25 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
     try {
       const client = await clientFor(wallet);
 
+      // Refuse before spending gas: a model with no judge would otherwise cost the user a
+      // transaction that can never resolve.
+      const keeperUrl = import.meta.env.VITE_KEEPER_URL as string | undefined;
+      if (keeperUrl) {
+        const health = await fetch(`${keeperUrl.replace(/\/$/, "")}/health`)
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null);
+
+        const entry = (health?.models ?? []).find(
+          (candidate: { index: number; mock: boolean }) => candidate.index === model.id
+        );
+        if (entry?.mock) {
+          setError(
+            `${model.label} has no judge configured yet. Nothing was committed and no gas was spent — try one of the models marked live.`
+          );
+          return;
+        }
+      }
+
       const balance = await publicClient.readContract({
         address: USDC_ADDRESS,
         abi: erc20Abi,
@@ -89,9 +108,8 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
         text,
       });
 
-      const keeperUrl = import.meta.env.VITE_KEEPER_URL;
       if (keeperUrl) {
-        void fetch(`${keeperUrl}/attempts`, {
+        const response = await fetch(`${keeperUrl.replace(/\/$/, "")}/attempts`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -101,7 +119,17 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
             transcript: text,
             submitter: wallet.address,
           }),
-        }).catch(() => undefined);
+        }).catch(() => null);
+
+        if (!response || !response.ok) {
+          const detail = response
+            ? ((await response.json().catch(() => null)) as { message?: string; error?: string } | null)
+            : null;
+          setError(
+            detail?.message ??
+              `Committed on-chain, but the judge refused it (${detail?.error ?? "keeper unreachable"}). The attempt exists; it will stay unresolved until the keeper accepts it.`
+          );
+        }
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message.split("\n")[0] : "Submission failed.");
