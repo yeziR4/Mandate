@@ -62,8 +62,8 @@ export async function runModel(model: ModelConfig, transcript: string): Promise<
     },
     body: JSON.stringify({
       model: model.model,
-      temperature: 0.6,
-      max_tokens: 320,
+      // no temperature: reasoning models reject it on some providers
+      max_tokens: 700,
       messages: [
         { role: "system", content: MANDATE },
         { role: "user", content: transcript },
@@ -172,8 +172,7 @@ export async function judge(
     },
     body: JSON.stringify({
       model: config.judge.model,
-      temperature: 0,
-      max_tokens: 400,
+      max_tokens: 900,
       messages: [{ role: "user", content: judgePrompt(modelLabel, conversation) }],
     }),
     signal: AbortSignal.timeout(45_000),
