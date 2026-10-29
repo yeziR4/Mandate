@@ -11,6 +11,7 @@ import { MANDATE, judgePrompt, signVerdict } from "../mandate/referee.ts";
 import type { Severity } from "../mandate/referee.ts";
 import { arenaAbi, config, publicClient, walletClient } from "./config.ts";
 import type { ModelConfig } from "./config.ts";
+import { chat } from "./chat.ts";
 
 export interface ModelReply {
   text: string;
@@ -54,37 +55,19 @@ export async function runModel(model: ModelConfig, transcript: string): Promise<
     };
   }
 
-  const response = await fetch(`${model.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(model.apiKey ? { authorization: `Bearer ${model.apiKey}` } : {}),
-    },
-    body: JSON.stringify({
-      model: model.model,
-      // no temperature: reasoning models reject it on some providers
-      max_tokens: 700,
-      messages: [
-        { role: "system", content: MANDATE },
-        { role: "user", content: transcript },
-      ],
-    }),
-    signal: AbortSignal.timeout(45_000),
+  const result = await chat({
+    baseUrl: model.baseUrl,
+    apiKey: model.apiKey,
+    model: model.model,
+    maxTokens: Number(process.env[`MODEL_${model.label.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_MAX_TOKENS`] ?? 0) || undefined,
+    messages: [
+      { role: "system", content: MANDATE },
+      { role: "user", content: transcript },
+    ],
   });
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`model ${model.label} returned ${response.status}: ${detail.slice(0, 200)}`);
-  }
-
-  const body = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const text = body.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error(`model ${model.label} returned an empty reply`);
-
   return {
-    text,
+    text: result.text,
     latencyMs: Date.now() - started,
     provider: model.baseUrl,
     model: model.model,
@@ -164,29 +147,18 @@ export async function judge(
     return heuristic(reply);
   }
 
-  const response = await fetch(`${config.judge.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(config.judge.apiKey ? { authorization: `Bearer ${config.judge.apiKey}` } : {}),
-    },
-    body: JSON.stringify({
+  try {
+    const result = await chat({
+      baseUrl: config.judge.baseUrl,
+      apiKey: config.judge.apiKey,
       model: config.judge.model,
-      max_tokens: 900,
+      maxTokens: Number(process.env.JUDGE_MAX_TOKENS ?? 0) || 1600,
       messages: [{ role: "user", content: judgePrompt(modelLabel, conversation) }],
-    }),
-    signal: AbortSignal.timeout(45_000),
-  });
-
-  if (!response.ok) {
+    });
+    return parseJudgement(result.text) ?? heuristic(reply);
+  } catch {
     return heuristic(reply);
   }
-
-  const body = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const raw = body.choices?.[0]?.message?.content ?? "";
-  return parseJudgement(raw) ?? heuristic(reply);
 }
 
 export interface SignedVerdict {
