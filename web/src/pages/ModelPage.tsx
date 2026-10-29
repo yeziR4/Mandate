@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AttemptPanel from "../components/AttemptPanel";
+import ModelLogo from "../components/ModelLogo";
 import { Pill } from "../components/Pill";
 import { loadBoard, type Board as BoardData, type Model } from "../lib/arena";
 import { dateStamp, shortAddress, timeAgo, usd } from "../lib/format";
@@ -64,7 +65,10 @@ export default function ModelPage() {
               <span className="kicker">Model {String(index).padStart(2, "0")}</span>
               {model && <Pill state={model.broken ? "broken" : "live"} />}
             </div>
-            <h1 className="modelhead__name">{model?.label ?? <span className="skeleton" style={{ display: "inline-block", width: 180, height: 40 }} />}</h1>
+            <h1 className="modelhead__name">
+              {model && <ModelLogo label={model.label} size={52} />}
+              {model?.label ?? <span className="skeleton" style={{ display: "inline-block", width: 180, height: 40 }} />}
+            </h1>
           </div>
 
           <div className="modelhead__purse">

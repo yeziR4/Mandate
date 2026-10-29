@@ -1,3 +1,4 @@
+import ModelLogo from "./ModelLogo";
 import type { AttemptEvent, Model } from "../lib/arena";
 
 export default function AttemptFeed({
@@ -38,6 +39,7 @@ export default function AttemptFeed({
             return (
               <div className="feed__row" key={`${attempt.id}-${attempt.commit}`}>
                 <div className="feed__main">
+                  {model && <ModelLogo label={model.label} size={20} />}
                   <span className="feed__model">{model?.label ?? `#${attempt.model}`}</span>
                   <span className="feed__hash truncate">{attempt.commit.slice(0, 12)}…</span>
                 </div>

@@ -98,7 +98,7 @@ export default function Board() {
             </h2>
           </div>
           <div className="sechead__meta">
-            <div>{(board?.fee ?? 0n) === 0n ? "attempt free � gas only" : `attempt ${usd(board?.fee ?? 0n)}`}</div>
+            <div>{(board?.fee ?? 0n) === 0n ? "attempt free · gas only" : `attempt ${usd(board?.fee ?? 0n)}`}</div>
             <div>{board ? `${Math.round(board.cooldown / 60)} min cooldown` : "—"}</div>
           </div>
         </div>

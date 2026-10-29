@@ -96,7 +96,8 @@ export function PrivyWalletProvider({ children }: { children: ReactNode }) {
           showWalletUIs: true,
         },
         appearance: {
-          theme: "dark",
+          theme: "light",
+          accentColor: "#00cfff",
           landingHeader: "Sign in to attempt a purse",
           loginMessage: "X or email. No seed phrase, no extension.",
         },

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import { LedgerTape, VitalsRail } from "./components/Signals";
 import Board from "./pages/Board";
 import ModelPage from "./pages/ModelPage";
 import Certificates from "./pages/Certificates";
@@ -37,6 +38,7 @@ export default function App() {
       <RouteEffects />
       <div className="app">
         <Header />
+        <VitalsRail />
         <main>
           <Routes>
             <Route path="/" element={<Board />} />
@@ -48,6 +50,7 @@ export default function App() {
           </Routes>
         </main>
         <Footer />
+        <LedgerTape />
       </div>
     </>
   );

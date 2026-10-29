@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import type { Model } from "../lib/arena";
+import { brandFor } from "../lib/brands";
 import { pad, timeAgo, usd } from "../lib/format";
+import ModelLogo from "./ModelLogo";
 import { Pill } from "./Pill";
 
 export default function ModelRow({ model, bounty }: { model: Model; bounty: bigint }) {
@@ -8,9 +10,14 @@ export default function ModelRow({ model, bounty }: { model: Model; bounty: bigi
     <div className={`board__row${model.broken ? " board__row--broken" : ""}`}>
       <span className="board__id">{pad(model.id)}</span>
 
-      <div className="board__name">
-        <span className="board__model">{model.label}</span>
-        <span className="board__sub">{model.configured ? "mandate v1" : "unconfigured"}</span>
+      <div className="board__ident">
+        <ModelLogo label={model.label} size={34} />
+        <div className="board__name">
+          <span className="board__model">{model.label}</span>
+          <span className="board__sub">
+            {brandFor(model.label)?.maker ?? "—"} · {model.configured ? "mandate v1" : "unconfigured"}
+          </span>
+        </div>
       </div>
 
       <div className="board__pill">
