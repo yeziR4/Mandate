@@ -17,7 +17,9 @@ COPY keeper ./keeper
 COPY mandate/referee.ts mandate/policy.txt mandate/models.json ./mandate/
 
 # transcripts live here; mount a volume so a restart does not lose the record
-VOLUME ["/app/keeper/data"]
+RUN mkdir -p /app/data && chown -R node:node /app/data
+ENV DATA_DIR=/app/data
+VOLUME ["/app/data"]
 EXPOSE 8787
 USER node
 CMD ["node", "--experimental-strip-types", "keeper/server.ts"]

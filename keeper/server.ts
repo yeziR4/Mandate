@@ -62,11 +62,18 @@ export function createKeeper() {
 
     try {
       if (req.method === "GET" && url.pathname === "/health") {
+        const mock = config.models.filter((model) => model.mock).map((model) => model.label);
         send(res, 200, {
           ok: true,
           arena: config.arena,
           keeper: keeperAccount?.address ?? null,
           autoRelay: config.autoRelay,
+          real: config.models.filter((model) => !model.mock).length,
+          mock,
+          warning:
+            mock.length > 0
+              ? `${mock.length} model(s) have no provider and will be refused at submission: ${mock.join(", ")}`
+              : undefined,
           models: config.models.map((model, index) => ({
             index,
             label: model.label,
@@ -78,6 +85,11 @@ export function createKeeper() {
 
       if (req.method === "GET" && url.pathname.startsWith("/transcript/")) {
         const id = url.pathname.split("/").pop() ?? "";
+        // ids are numeric; anything else is a path-traversal attempt
+        if (!/^\d+$/.test(id)) {
+          send(res, 404, { error: "not_found" });
+          return;
+        }
         const record = load(id);
         if (!record) {
           send(res, 404, { error: "not_found" });
@@ -112,6 +124,10 @@ export function createKeeper() {
 
       send(res, 404, { error: "not_found" });
     } catch (cause) {
+      if (cause instanceof SyntaxError) {
+        send(res, 400, { error: "invalid_json" });
+        return;
+      }
       console.error("keeper error", cause);
       send(res, 500, { error: cause instanceof Error ? cause.message : "internal_error" });
     }
@@ -140,17 +156,24 @@ async function handleAttempt(req: IncomingMessage, res: ServerResponse) {
     return;
   }
 
-  const onchain = (await publicClient.readContract({
-    address: config.arena,
-    abi: arenaAbi,
-    functionName: "getAttempt",
-    args: [BigInt(attemptId)],
-  })) as {
+  const onchain = (await publicClient
+    .readContract({
+      address: config.arena,
+      abi: arenaAbi,
+      functionName: "getAttempt",
+      args: [BigInt(attemptId)],
+    })
+    .catch(() => null)) as {
     model: number;
     submitter: string;
     commit: string;
     resolved: boolean;
-  };
+  } | null;
+
+  if (!onchain) {
+    send(res, 404, { error: "attempt_not_found", message: `no attempt ${attemptId} on the arena` });
+    return;
+  }
 
   if (onchain.resolved) {
     send(res, 409, { error: "attempt already resolved on chain" });
@@ -176,6 +199,16 @@ async function handleAttempt(req: IncomingMessage, res: ServerResponse) {
   const model = config.models[Number(onchain.model)];
   if (!model) {
     send(res, 400, { error: `no model configured at index ${onchain.model}` });
+    return;
+  }
+
+  // A mock model answers from a script. Judging it would mint a certificate for a break
+  // that never happened, so refuse unless someone explicitly opted in.
+  if (model.mock && process.env.ALLOW_MOCK !== "true") {
+    send(res, 409, {
+      error: "model_unavailable",
+      message: `${model.label} has no provider configured yet. Nothing was judged and no certificate was issued.`,
+    });
     return;
   }
 
