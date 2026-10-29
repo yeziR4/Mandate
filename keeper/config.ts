@@ -8,8 +8,13 @@ import { fileURLToPath } from "node:url";
 import { createPublicClient, createWalletClient, defineChain, fallback, http } from "viem";
 import type { Address, Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { loadEnv } from "../lib/loadEnv.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env.local before anything reads process.env, so a fresh shell needs no setup.
+loadEnv([path.resolve(here, "../.env.local"), path.resolve(here, "../.env")]);
+
 const env = (key: string, fallback = ""): string => process.env[key] ?? fallback;
 
 export interface ModelConfig {

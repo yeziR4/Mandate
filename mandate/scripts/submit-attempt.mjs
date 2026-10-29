@@ -12,6 +12,7 @@
  *   node mandate/scripts/submit-attempt.mjs
  */
 import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -26,6 +27,18 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+// .env.local at the repo root: no shell setup, no re-typing the key each window.
+for (const file of [path.resolve(here, "../../.env.local"), path.resolve(here, "../../.env")]) {
+  if (!existsSync(file)) continue;
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (match && process.env[match[1]] === undefined) {
+      process.env[match[1]] = match[2].replace(/^["']|["']$/g, "");
+    }
+  }
+}
+
 const env = (key, fallbackValue = "") => process.env[key] ?? fallbackValue;
 
 const arena = env("ARENA_ADDRESS", "0x0c1fccb074913ea6ab337ca8a6c1d6fa4c40376d");
