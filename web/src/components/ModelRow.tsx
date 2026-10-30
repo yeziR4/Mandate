@@ -5,7 +5,15 @@ import { pad, timeAgo, usd } from "../lib/format";
 import ModelLogo from "./ModelLogo";
 import { Pill } from "./Pill";
 
-export default function ModelRow({ model, bounty }: { model: Model; bounty: bigint }) {
+export default function ModelRow({
+  model,
+  bounty,
+  judging,
+}: {
+  model: Model;
+  bounty: bigint;
+  judging?: boolean;
+}) {
   return (
     <div className={`board__row${model.broken ? " board__row--broken" : ""}`}>
       <span className="board__id">{pad(model.id)}</span>
@@ -22,6 +30,7 @@ export default function ModelRow({ model, bounty }: { model: Model; bounty: bigi
 
       <div className="board__pill">
         <Pill state={model.broken ? "broken" : "live"} />
+        {judging === false && <span className="pill pill--queued">queued</span>}
       </div>
 
       <span className={`board__purse${model.broken ? " board__purse--dead" : ""}`}>

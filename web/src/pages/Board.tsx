@@ -12,12 +12,14 @@ import {
 } from "../lib/arena";
 import { usd } from "../lib/format";
 import { useMandate } from "../lib/useMandate";
+import { useKeeperHealth } from "../lib/useKeeperHealth";
 
 export default function Board() {
   const [board, setBoard] = useState<BoardData>();
   const [feed, setFeed] = useState<AttemptEvent[]>([]);
   const [error, setError] = useState<string>();
   const mandate = useMandate();
+  const keeper = useKeeperHealth();
 
   useEffect(() => {
     let live = true;
@@ -139,13 +141,20 @@ export default function Board() {
                       <span />
                     </div>
                   ))
-                : models.map((model) => <ModelRow key={model.id} model={model} bounty={board?.bounty ?? 0n} />)}
+                : models.map((model) => (
+                    <ModelRow
+                      key={model.id}
+                      model={model}
+                      bounty={board?.bounty ?? 0n}
+                      judging={keeper.judging(model.id)}
+                    />
+                  ))}
             </div>
 
             <p className="hint" style={{ marginTop: 16 }}>
               {PREVIEW
                 ? "Preview build — figures are design data, not chain state."
-                : "Purses grow with every failed attempt. A break pays the whole purse and closes the model for the season."}
+                : "Attempts cost gas only. A break mints a certificate, removes the model from the scenario, and the bounty settles at close."}
             </p>
           </div>
 

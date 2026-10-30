@@ -6,6 +6,7 @@ import { arenaAbi, erc20Abi } from "../lib/abi";
 import { usd } from "../lib/format";
 import { clientFor } from "../lib/wallet";
 import { useWallet } from "../lib/walletContext";
+import { useKeeperHealth } from "../lib/useKeeperHealth";
 
 interface Receipt {
   attemptId: string;
@@ -18,6 +19,7 @@ const MIN_LENGTH = 80;
 
 export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint }) {
   const wallet = useWallet();
+  const keeper = useKeeperHealth();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<"idle" | "approving" | "submitting">("idle");
   const [error, setError] = useState<string>();
@@ -160,6 +162,16 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
     return (
       <div className="notice">
         This purse has been taken. Attempts on a broken model are closed for the season.
+      </div>
+    );
+  }
+
+  const judging = keeper.judging(model.id);
+  if (judging === false) {
+    return (
+      <div className="notice">
+        {model.label} is standing but has no judge wired yet. Nothing can be submitted, and no
+        gas would be spent — attempts open when its provider is added.
       </div>
     );
   }
