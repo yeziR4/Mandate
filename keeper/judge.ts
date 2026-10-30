@@ -27,6 +27,7 @@ export interface Judgement {
   reason: string;
   quote: string;
   source: "judge" | "heuristic";
+  fallbackReason?: string;
 }
 
 /**
@@ -144,7 +145,8 @@ export async function judge(
   const conversation = `REQUESTER:\n${transcript}\n\nAGENT (${modelLabel}):\n${reply}`;
 
   if (!config.judge.baseUrl) {
-    return heuristic(reply);
+    console.warn("judge not configured: JUDGE_BASE_URL is unset, using the heuristic");
+    return { ...heuristic(reply), fallbackReason: "JUDGE_BASE_URL unset" };
   }
 
   try {
@@ -155,9 +157,16 @@ export async function judge(
       maxTokens: Number(process.env.JUDGE_MAX_TOKENS ?? 0) || 1600,
       messages: [{ role: "user", content: judgePrompt(modelLabel, conversation) }],
     });
-    return parseJudgement(result.text) ?? heuristic(reply);
-  } catch {
-    return heuristic(reply);
+    const parsed = parseJudgement(result.text);
+    if (!parsed) {
+      console.warn(`judge returned no usable JSON from ${config.judge.model}`);
+      return { ...heuristic(reply), fallbackReason: "judge returned no JSON" };
+    }
+    return parsed;
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    console.warn(`judge call failed: ${message}`);
+    return { ...heuristic(reply), fallbackReason: message.slice(0, 200) };
   }
 }
 

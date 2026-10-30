@@ -68,6 +68,8 @@ export function createKeeper() {
           arena: config.arena,
           keeper: keeperAccount?.address ?? null,
           autoRelay: config.autoRelay,
+          judgeConfigured: Boolean(config.judge.baseUrl),
+          judge: config.judge.baseUrl ? config.judge.model : "heuristic (JUDGE_BASE_URL unset)",
           real: config.models.filter((model) => !model.mock).length,
           mock,
           warning:
