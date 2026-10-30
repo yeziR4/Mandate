@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+web
+oxley
+arena-tcg
+mandate/lib
+mandate/out
+mandate/cache
+mandate/artifacts
+.git
+.env*
+keeper/data
+web/shots
+*.md

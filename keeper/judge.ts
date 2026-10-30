@@ -200,6 +200,9 @@ export async function signVerdictFor(
 export async function relayVerdict(verdict: SignedVerdict): Promise<string> {
   if (!walletClient || !config.arena) throw new Error("keeper wallet not configured");
 
+  // Legacy pricing: Metis Andromeda rejects type-2 raw transactions.
+  const gasPrice = await publicClient.getGasPrice();
+
   const hash = await walletClient.writeContract({
     address: config.arena,
     abi: arenaAbi,
@@ -212,8 +215,9 @@ export async function relayVerdict(verdict: SignedVerdict): Promise<string> {
       BigInt(verdict.deadline),
       verdict.signature,
     ],
+    gasPrice: gasPrice * 2n,
   });
 
-  await publicClient.waitForTransactionReceipt({ hash });
+  await publicClient.waitForTransactionReceipt({ hash, timeout: 180_000, pollingInterval: 2_000 });
   return hash;
 }

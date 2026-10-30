@@ -29,15 +29,17 @@ import { privateKeyToAccount } from "viem/accounts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // .env.local at the repo root: no shell setup, no re-typing the key each window.
+// Later file wins; a stale shell variable must not shadow the file.
 for (const file of [
-  path.resolve(here, "../../.env.mandate"),
-  path.resolve(here, "../../.env.local"),
   path.resolve(here, "../../.env"),
+  path.resolve(here, "../../.env.local"),
+  path.resolve(here, "../../.env.mandate"),
 ]) {
   if (!existsSync(file)) continue;
   for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
-    if (match && process.env[match[1]] === undefined) {
+    if (match) {
+      // overwrite: a stale shell value is the failure we are replacing
       process.env[match[1]] = match[2].replace(/^["']|["']$/g, "");
     }
   }
@@ -117,8 +119,9 @@ const hash = await wallet.writeContract({
   functionName: "submitAttempt",
   args: [modelIndex, commit],
   gas: 400_000n,
-  maxFeePerGas: gasPrice * 2n,
-  maxPriorityFeePerGas: gasPrice,
+  // Legacy pricing on purpose: Metis Andromeda rejects type-2 raw transactions
+  // ("rlp: expected input list for types.txdata").
+  gasPrice: gasPrice * 2n,
 });
 
 console.log(`sent      ${hash}`);

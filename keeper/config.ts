@@ -12,12 +12,12 @@ import { loadEnv } from "../lib/loadEnv.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// Load .env.mandate before anything reads process.env, so a fresh shell needs no setup.
-// .env.local is left alone: Vercel CLI owns it and it holds an OIDC token.
+// Load config from files before anything reads process.env. Later files win, and the file
+// beats a stale shell variable — which is the whole point of having a file.
 loadEnv([
-  path.resolve(here, "../.env.mandate"),
-  path.resolve(here, "../.env.local"),
   path.resolve(here, "../.env"),
+  path.resolve(here, "../.env.local"),
+  path.resolve(here, "../.env.mandate"),
 ]);
 
 const env = (key: string, fallback = ""): string => process.env[key] ?? fallback;

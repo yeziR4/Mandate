@@ -1,8 +1,9 @@
 /**
  * Minimal .env loader. No dependency, no shell setup.
  *
- * It reads <repo>/.env.local (then .env) and fills process.env for any key that is not
- * already set, so a real environment variable still wins. The file is gitignored.
+ * Later files win, so callers pass [.env, .env.local, .env.mandate] and the most specific
+ * file takes precedence. Overwriting is deliberate: a stale variable left in a shell from
+ * an earlier attempt is exactly the failure this replaces.
  */
 import { existsSync, readFileSync } from "node:fs";
 
@@ -24,7 +25,7 @@ export function loadEnv(files: string[]): string[] {
       ) {
         value = value.slice(1, -1);
       }
-      if (process.env[key] === undefined) process.env[key] = value;
+      process.env[key] = value;
     }
   }
 

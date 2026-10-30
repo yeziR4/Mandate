@@ -28,7 +28,9 @@ export interface Record {
 }
 
 const dir = () => {
-  const target = path.join(config.dataDir, "transcripts");
+  // Namespaced by arena: a local anvil deployment must never collide with mainnet records.
+  const scope = /^0x[0-9a-fA-F]{40}$/.test(config.arena) ? config.arena.toLowerCase() : "unscoped";
+  const target = path.join(config.dataDir, "transcripts", scope);
   mkdirSync(target, { recursive: true });
   return target;
 };
