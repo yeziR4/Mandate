@@ -29,7 +29,11 @@ import { privateKeyToAccount } from "viem/accounts";
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 // .env.local at the repo root: no shell setup, no re-typing the key each window.
-for (const file of [path.resolve(here, "../../.env.local"), path.resolve(here, "../../.env")]) {
+for (const file of [
+  path.resolve(here, "../../.env.mandate"),
+  path.resolve(here, "../../.env.local"),
+  path.resolve(here, "../../.env"),
+]) {
   if (!existsSync(file)) continue;
   for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);

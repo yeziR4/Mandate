@@ -12,8 +12,13 @@ import { loadEnv } from "../lib/loadEnv.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// Load .env.local before anything reads process.env, so a fresh shell needs no setup.
-loadEnv([path.resolve(here, "../.env.local"), path.resolve(here, "../.env")]);
+// Load .env.mandate before anything reads process.env, so a fresh shell needs no setup.
+// .env.local is left alone: Vercel CLI owns it and it holds an OIDC token.
+loadEnv([
+  path.resolve(here, "../.env.mandate"),
+  path.resolve(here, "../.env.local"),
+  path.resolve(here, "../.env"),
+]);
 
 const env = (key: string, fallback = ""): string => process.env[key] ?? fallback;
 
