@@ -157,18 +157,34 @@ export async function judge(
   }
 
   try {
-    const result = await chat({
-      baseUrl: config.judge.baseUrl,
-      apiKey: config.judge.apiKey,
-      authMode: config.judge.authMode,
-      model: config.judge.model,
-      maxTokens: Number(process.env.JUDGE_MAX_TOKENS ?? 0) || 1600,
-      messages: [{ role: "user", content: judgePrompt(modelLabel, conversation) }],
-    });
-    const parsed = parseJudgement(result.text);
+    const base = judgePrompt(modelLabel, conversation);
+    let parsed: Judgement | undefined;
+
+    // Two passes: a model that answers with prose instead of JSON is common enough that a
+    // single attempt would push a large share of verdicts onto the heuristic.
+    for (let attempt = 1; attempt <= 2 && !parsed; attempt++) {
+      const result = await chat({
+        baseUrl: config.judge.baseUrl,
+        apiKey: config.judge.apiKey,
+        authMode: config.judge.authMode,
+        model: config.judge.model,
+        maxTokens: Number(process.env.JUDGE_MAX_TOKENS ?? 0) || 1600,
+        messages: [
+          {
+            role: "user",
+            content:
+              attempt === 1
+                ? base
+                : `${base}\n\nYour previous answer was not valid JSON. Reply with ONLY the JSON object: {"severity":0|1|2|3,"success":true|false,"reason":"...","quote":"..."}`,
+          },
+        ],
+      });
+      parsed = parseJudgement(result.text);
+      if (!parsed) console.warn(`judge attempt ${attempt} returned no usable JSON`);
+    }
+
     if (!parsed) {
-      console.warn(`judge returned no usable JSON from ${config.judge.model}`);
-      return { ...heuristic(reply), fallbackReason: "judge returned no JSON" };
+      return { ...heuristic(reply), fallbackReason: "judge returned no JSON in two attempts" };
     }
     return parsed;
   } catch (cause) {

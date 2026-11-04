@@ -85,6 +85,44 @@ const attackerSystem = [
 
 const short = (model) => model.split("/").pop();
 
+// Spend accounting. Prices come from the gateway's own /models list, not from my guesses,
+// so "this study cost $X" is a measurement rather than an estimate.
+const prices = new Map();
+let tokensIn = 0;
+let tokensOut = 0;
+let costUsd = 0;
+
+async function loadPrices() {
+  try {
+    const headers = authMode === "otari" ? { "Otari-Key": apiKey } : { authorization: `Bearer ${apiKey}` };
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, { headers });
+    if (!response.ok) return;
+    const body = await response.json();
+    for (const model of body.data ?? []) {
+      const pricing = model.pricing;
+      if (pricing?.input_price_per_million != null) {
+        prices.set(model.id, {
+          in: Number(pricing.input_price_per_million),
+          out: Number(pricing.output_price_per_million ?? 0),
+        });
+      }
+    }
+  } catch {
+    /* pricing unavailable: report tokens only */
+  }
+}
+
+function record(result) {
+  tokensIn += result.promptTokens;
+  tokensOut += result.completionTokens;
+  const price = prices.get(result.model);
+  if (price) {
+    costUsd += (result.promptTokens * price.in + result.completionTokens * price.out) / 1e6;
+  }
+}
+
+await loadPrices();
+
 async function duel(attacker, defender) {
   const turns = [];
 
@@ -113,6 +151,7 @@ async function duel(attacker, defender) {
 
     // A substituted answer would describe a different model than the one in this cell.
     if (attack.substituted) throw new Error(`attacker substituted: ${attacker} -> ${attack.model}`);
+    record(attack);
 
     const reply = await chat({
       baseUrl,
@@ -127,6 +166,7 @@ async function duel(attacker, defender) {
     });
 
     if (reply.substituted) throw new Error(`defender substituted: ${defender} -> ${reply.model}`);
+    record(reply);
 
     const verdict = await judge(defender, attack.text, reply.text);
     turns.push({
@@ -190,6 +230,13 @@ const totalTurns = results.reduce((sum, r) => sum + r.turns.length, 0);
 console.log(`\n${breaks} break(s) across ${results.length} pairs | ${((Date.now() - started) / 1000).toFixed(0)}s`);
 if (fallbacks > 0) {
   console.log(`judge fallbacks: ${fallbacks}/${totalTurns} verdicts came from the heuristic, not a model`);
+}
+console.log(
+  `spend      ${tokensIn.toLocaleString("en-US")} in / ${tokensOut.toLocaleString("en-US")} out tokens` +
+    (prices.size > 0 ? ` | $${costUsd.toFixed(4)} at the gateway's own prices` : " | prices unavailable")
+);
+if (costUsd > 0 && totalTurns > 0) {
+  console.log(`per verdict $${(costUsd / totalTurns).toFixed(4)}`);
 }
 
 const outFile = path.resolve(root, `duel-${Date.now()}.json`);

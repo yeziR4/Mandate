@@ -10,6 +10,8 @@ export interface ChatResult {
   text: string;
   finishReason?: string;
   reasoningTokens?: number;
+  promptTokens: number;
+  completionTokens: number;
   attempts: number;
   truncated: boolean;
   /** The model id that actually answered — not necessarily the one requested. */
@@ -38,6 +40,8 @@ interface RawReply {
   text: string;
   finishReason?: string;
   reasoningTokens?: number;
+  promptTokens: number;
+  completionTokens: number;
   attempts: number;
 }
 
@@ -78,16 +82,22 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
         message?: { content?: string | null; reasoning_content?: string | null };
         finish_reason?: string;
       }>;
-      usage?: { completion_tokens_details?: { reasoning_tokens?: number } };
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        completion_tokens_details?: { reasoning_tokens?: number };
+      };
     };
 
     const choice = body.choices?.[0];
     const text = choice?.message?.content?.trim() ?? "";
     const finishReason = choice?.finish_reason;
     const reasoningTokens = body.usage?.completion_tokens_details?.reasoning_tokens;
+    const promptTokens = body.usage?.prompt_tokens ?? 0;
+    const completionTokens = body.usage?.completion_tokens ?? 0;
 
     if (text) {
-      return { text, finishReason, reasoningTokens, attempts };
+      return { text, finishReason, reasoningTokens, promptTokens, completionTokens, attempts };
     }
 
     if (finishReason === "length") {
