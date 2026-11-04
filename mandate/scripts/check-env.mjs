@@ -10,7 +10,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
 
 const files = [".env.mandate", ".env.local", ".env"];
-const wanted = ["KEEPER_PRIVATE_KEY", "PRIVATE_KEY", "RIVER_KEY", "MODEL_GLM_API_KEY", "ARENA_ADDRESS"];
+const wanted = [
+  "KEEPER_PRIVATE_KEY",
+  "PRIVATE_KEY",
+  "ARENA_ADDRESS",
+  "RIVER_KEY",
+  "OTARI_API_KEY",
+  "OTARI_BASE_URL",
+  "ATTACKERS",
+  "DEFENDERS",
+];
 
 for (const name of files) {
   const file = path.join(root, name);
