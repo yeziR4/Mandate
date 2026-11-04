@@ -62,6 +62,7 @@ export async function runModel(model: ModelConfig, transcript: string): Promise<
   const result = await chat({
     baseUrl: model.baseUrl,
     apiKey: model.apiKey,
+    authMode: model.authMode,
     model: model.model,
     fallbackModel: config.fallbackModel || undefined,
     maxTokens: Number(process.env[`MODEL_${model.label.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_MAX_TOKENS`] ?? 0) || undefined,
@@ -159,6 +160,7 @@ export async function judge(
     const result = await chat({
       baseUrl: config.judge.baseUrl,
       apiKey: config.judge.apiKey,
+      authMode: config.judge.authMode,
       model: config.judge.model,
       maxTokens: Number(process.env.JUDGE_MAX_TOKENS ?? 0) || 1600,
       messages: [{ role: "user", content: judgePrompt(modelLabel, conversation) }],

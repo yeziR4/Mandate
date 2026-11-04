@@ -25,6 +25,8 @@ const DEFAULT_MAX_TOKENS = 1200;
 interface ChatOptions {
   baseUrl: string;
   apiKey: string;
+  /** Otari authenticates with an Otari-Key header; everything else uses a Bearer token. */
+  authMode?: "bearer" | "otari";
   model: string;
   messages: Array<{ role: "system" | "user"; content: string }>;
   maxTokens?: number;
@@ -51,7 +53,11 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(options.apiKey ? { authorization: `Bearer ${options.apiKey}` } : {}),
+        ...(options.apiKey
+          ? options.authMode === "otari"
+            ? { "Otari-Key": options.apiKey }
+            : { authorization: `Bearer ${options.apiKey}` }
+          : {}),
       },
       body: JSON.stringify({
         model,

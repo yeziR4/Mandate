@@ -26,3 +26,4 @@ site.html
 bundle*.js
 transcript*.json
 probe-chat.mjs
+duel-*.json

@@ -26,6 +26,7 @@ export interface ModelConfig {
   label: string;
   baseUrl: string;
   apiKey: string;
+  authMode: "bearer" | "otari";
   model: string;
   mock: boolean;
 }
@@ -51,6 +52,7 @@ function loadModels(): ModelConfig[] {
       label: entry.label,
       baseUrl,
       apiKey: gatewayBase ? gatewayKey : env(`MODEL_${key}_API_KEY`, entry.apiKey ?? ""),
+      authMode: gatewayBase ? "otari" : "bearer",
       model: env(`MODEL_${key}_NAME`, entry.model ?? entry.label.toLowerCase()),
       mock: baseUrl === "",
     };
@@ -68,6 +70,7 @@ export const config = {
   judge: {
     baseUrl: env("JUDGE_BASE_URL"),
     apiKey: env("JUDGE_API_KEY"),
+    authMode: env("JUDGE_BASE_URL").includes("otari") ? ("otari" as const) : ("bearer" as const),
     model: env("JUDGE_MODEL", "gpt-4.1-mini"),
   },
   /** Optional: a second model id the gateway can fall back to on infrastructure failure. */
