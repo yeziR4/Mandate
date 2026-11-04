@@ -27,3 +27,4 @@ bundle*.js
 transcript*.json
 probe-chat.mjs
 duel-*.json
+!.env.mandate.example
