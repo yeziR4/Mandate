@@ -1,10 +1,10 @@
 /**
- * One chat call, with the reasoning-model problem handled properly.
+ * One chat call, with the reasoning-model problem handled properly, and optional gateway
+ * fallback.
  *
- * A reasoning model spends the token budget thinking before it answers. If the budget runs
- * out first, `content` is empty and `finish_reason` is "length" — which must NOT be read as
- * a refusal, or the benchmark records a false negative. So: give a generous budget, and on
- * an exhausted budget retry once with double.
+ * Fallback exists because a router can survive a provider outage. It is dangerous for a
+ * benchmark: if a request silently lands on a different model, the verdict describes a model
+ * that was never under test. So a substituted answer is always reported, never hidden.
  */
 export interface ChatResult {
   text: string;
@@ -12,7 +12,13 @@ export interface ChatResult {
   reasoningTokens?: number;
   attempts: number;
   truncated: boolean;
+  /** The model id that actually answered — not necessarily the one requested. */
+  model: string;
+  /** True when the answer came from the fallback model. */
+  substituted: boolean;
 }
+
+export class ReasoningBudgetError extends Error {}
 
 const DEFAULT_MAX_TOKENS = 1200;
 
@@ -23,9 +29,17 @@ interface ChatOptions {
   messages: Array<{ role: "system" | "user"; content: string }>;
   maxTokens?: number;
   timeoutMs?: number;
+  fallbackModel?: string;
 }
 
-export async function chat(options: ChatOptions): Promise<ChatResult> {
+interface RawReply {
+  text: string;
+  finishReason?: string;
+  reasoningTokens?: number;
+  attempts: number;
+}
+
+async function callModel(options: ChatOptions, model: string): Promise<RawReply> {
   const url = `${options.baseUrl.replace(/\/$/, "")}/chat/completions`;
   let budget = options.maxTokens ?? DEFAULT_MAX_TOKENS;
   let attempts = 0;
@@ -40,7 +54,7 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
         ...(options.apiKey ? { authorization: `Bearer ${options.apiKey}` } : {}),
       },
       body: JSON.stringify({
-        model: options.model,
+        model,
         // deliberately no temperature: several providers reject it on reasoning models
         max_tokens: budget,
         messages: options.messages,
@@ -50,7 +64,7 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`${options.model} returned ${response.status}: ${detail.slice(0, 200)}`);
+      throw new Error(`${model} returned ${response.status}: ${detail.slice(0, 200)}`);
     }
 
     const body = (await response.json()) as {
@@ -67,19 +81,36 @@ export async function chat(options: ChatOptions): Promise<ChatResult> {
     const reasoningTokens = body.usage?.completion_tokens_details?.reasoning_tokens;
 
     if (text) {
-      return { text, finishReason, reasoningTokens, attempts, truncated: finishReason === "length" };
+      return { text, finishReason, reasoningTokens, attempts };
     }
 
-    // empty answer: if the budget was the reason, double it and try once more
     if (finishReason === "length") {
       budget *= 2;
       continue;
     }
 
-    throw new Error(`${options.model} returned no answer (finish_reason: ${finishReason ?? "unknown"})`);
+    throw new Error(`${model} returned no answer (finish_reason: ${finishReason ?? "unknown"})`);
   }
 
-  throw new Error(
-    `${options.model} exhausted ${budget} tokens on reasoning without producing an answer. Raise MODEL_*_MAX_TOKENS.`
+  throw new ReasoningBudgetError(
+    `${model} exhausted ${budget} tokens on reasoning without producing an answer. Raise MODEL_*_MAX_TOKENS.`
   );
+}
+
+export async function chat(options: ChatOptions): Promise<ChatResult> {
+  try {
+    const reply = await callModel(options, options.model);
+    return { ...reply, truncated: reply.finishReason === "length", model: options.model, substituted: false };
+  } catch (cause) {
+    // A reasoning budget is a property of the model under test, not an infrastructure fault.
+    // Falling back would answer for a different model and corrupt the verdict.
+    if (cause instanceof ReasoningBudgetError) throw cause;
+
+    const fallback = options.fallbackModel;
+    if (!fallback || fallback === options.model) throw cause;
+
+    console.warn(`gateway fallback: ${options.model} failed (${String(cause).slice(0, 120)}), retrying on ${fallback}`);
+    const reply = await callModel(options, fallback);
+    return { ...reply, truncated: reply.finishReason === "length", model: fallback, substituted: true };
+  }
 }

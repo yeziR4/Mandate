@@ -19,3 +19,10 @@ keeper/.env
 
 web/dist/
 web/shots/
+
+# scratch
+attempt.json
+site.html
+bundle*.js
+transcript*.json
+probe-chat.mjs

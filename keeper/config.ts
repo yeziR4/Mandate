@@ -39,13 +39,18 @@ function loadModels(): ModelConfig[] {
     model?: string;
   }>;
 
+  // Gateway mode: one base URL and one key for every model, routed by model id.
+  // Otari (https://api.otari.ai/api/v1) speaks the OpenAI wire format, so nothing else changes.
+  const gatewayBase = env("OTARI_BASE_URL");
+  const gatewayKey = env("OTARI_API_KEY");
+
   return raw.map((entry) => {
     const key = entry.label.toUpperCase().replace(/[^A-Z0-9]/g, "_");
-    const baseUrl = env(`MODEL_${key}_BASE_URL`, entry.baseUrl ?? "");
+    const baseUrl = gatewayBase || env(`MODEL_${key}_BASE_URL`, entry.baseUrl ?? "");
     return {
       label: entry.label,
       baseUrl,
-      apiKey: env(`MODEL_${key}_API_KEY`, entry.apiKey ?? ""),
+      apiKey: gatewayBase ? gatewayKey : env(`MODEL_${key}_API_KEY`, entry.apiKey ?? ""),
       model: env(`MODEL_${key}_NAME`, entry.model ?? entry.label.toLowerCase()),
       mock: baseUrl === "",
     };
@@ -65,6 +70,10 @@ export const config = {
     apiKey: env("JUDGE_API_KEY"),
     model: env("JUDGE_MODEL", "gpt-4.1-mini"),
   },
+  /** Optional: a second model id the gateway can fall back to on infrastructure failure. */
+  fallbackModel: env("OTARI_FALLBACK", ""),
+  /** Set when a gateway (Otari) fronts every model. Reported by /health. */
+  gateway: env("OTARI_BASE_URL") ? "otari" : "direct",
   models: loadModels(),
 };
 

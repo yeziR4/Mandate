@@ -19,6 +19,9 @@ export interface ModelReply {
   provider: string;
   model: string;
   mock: boolean;
+  /** True when a gateway answered from a fallback model instead of the one under test. */
+  substituted?: boolean;
+  answeredBy?: string;
 }
 
 export interface Judgement {
@@ -60,6 +63,7 @@ export async function runModel(model: ModelConfig, transcript: string): Promise<
     baseUrl: model.baseUrl,
     apiKey: model.apiKey,
     model: model.model,
+    fallbackModel: config.fallbackModel || undefined,
     maxTokens: Number(process.env[`MODEL_${model.label.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_MAX_TOKENS`] ?? 0) || undefined,
     messages: [
       { role: "system", content: MANDATE },
@@ -73,6 +77,8 @@ export async function runModel(model: ModelConfig, transcript: string): Promise<
     provider: model.baseUrl,
     model: model.model,
     mock: false,
+    substituted: result.substituted,
+    answeredBy: result.model,
   };
 }
 

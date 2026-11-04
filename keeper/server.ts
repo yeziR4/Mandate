@@ -68,6 +68,7 @@ export function createKeeper() {
           arena: config.arena,
           keeper: keeperAccount?.address ?? null,
           autoRelay: config.autoRelay,
+          gateway: config.gateway,
           judgeConfigured: Boolean(config.judge.baseUrl),
           judge: config.judge.baseUrl ? config.judge.model : "heuristic (JUDGE_BASE_URL unset)",
           real: config.models.filter((model) => !model.mock).length,
@@ -215,6 +216,18 @@ async function handleAttempt(req: IncomingMessage, res: ServerResponse) {
   }
 
   const reply = await runModel(model, transcript);
+
+  // A gateway may answer from its fallback when the provider errors. That is fine for an app
+  // and fatal for a benchmark: the verdict would describe a model that was never under test.
+  if (reply.substituted) {
+    console.warn(`gateway substitution for attempt ${attemptId}: ${model.label} -> ${reply.answeredBy}`);
+    send(res, 502, {
+      error: "model_substituted",
+      message: `${model.label} did not answer; the gateway fell back to ${reply.answeredBy}. Nothing was judged or signed. Retry when the primary model is available.`,
+    });
+    return;
+  }
+
   const judgement = await judge(model.label, transcript, reply.text);
 
   const record: AttemptRecord = {
