@@ -1,10 +1,19 @@
 # Otari issue — filled into their bug-report template
 
-File at: **https://github.com/mozilla-ai/otari/issues/new?template=bug_report.yml**
+**Prefilled link** (this one carries the template, so it fills automatically):
 
-Select **Bug report**, then paste the title and the body below. The template fields are all
-filled in, including the ones that assume you self-host — you are on the managed endpoint, and
-the report says so rather than leaving `<!-- -->` comments in.
+https://github.com/mozilla-ai/otari/issues/new?template=bug_report.md&title=%5BBUG%5D%20%2Fapi%2Fv1%2Fmodels%20returns%20chat%2C%20embedding%2C%20image%20and%20rerank%20models%20in%20one%20list%20with%20no%20capability%20field
+
+If it still asks you to choose, pick **Bug report** — `bug_report.md` is the only bug template in
+the repo (`blank_issues_enabled: false`).
+
+## Scope, so it does not get bounced to any-llm
+
+Their `config.yml` sends provider-level bugs ("missing provider, dropped param, bad response
+shape") to `mozilla-ai/any-llm`. So the issue is framed around the part that is unambiguously
+Otari's own surface — **`/api/v1/models` has no capability field** — and the provider failures are
+listed as context, not as the complaint. There is a short "what I think belongs where" section at
+the end.
 
 ---
 
@@ -166,6 +175,21 @@ Concretely, in rough order of usefulness:
 
 Happy to send the full 161-model result as JSON if that's useful — the probe script is
 `keeper/scripts/probe.mjs` in our repo and the output is `survey-otari.json`.
+
+### What I think belongs where
+
+Splitting this up so you can triage it quickly — happy to file the second list separately if you
+prefer:
+
+- **Otari:** `/models` has no capability field. `alibaba/qwen3-reranker-8b` and
+  `alibaba/qwen3guard-gen-8b` answer chat completions with `200` instead of rejecting them, so the
+  catalog label and the served behaviour disagree somewhere.
+- **Probably any-llm:** `alibaba/qwen3.6-27b` (504), `xai/grok-4.6`, `xai/grok-4.7`,
+  `surogate/rune-26b-a4b` ("No model accepted the request"), `mistralai/mistral-nemo-instruct-2407`
+  and `moonshotai/kimi-k3-spot` (404). These look like provider/model wiring rather than the
+  gateway, so I have not tried to diagnose them here.
+- **Neither, just an observation:** the HTML 504. That is CloudFront in front of you, and the fix
+  may be on the edge side.
 
 ### Relevant config (redacted)
 
