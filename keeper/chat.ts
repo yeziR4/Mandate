@@ -33,6 +33,8 @@ interface ChatOptions {
   messages: Array<{ role: "system" | "user"; content: string }>;
   maxTokens?: number;
   timeoutMs?: number;
+  /** Default true. Set false only to compare against the non-streaming path. */
+  stream?: boolean;
   fallbackModel?: string;
 }
 
@@ -48,6 +50,7 @@ interface RawReply {
 async function callModel(options: ChatOptions, model: string): Promise<RawReply> {
   const url = `${options.baseUrl.replace(/\/$/, "")}/chat/completions`;
   let budget = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const streaming = options.stream !== false;
   // Two independent budgets of attempts. Sharing one counter meant a single 504 consumed the
   // retry that a reasoning model needed, and the model was recorded as "exhausted" for an
   // infrastructure fault it never saw.
@@ -58,7 +61,30 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
   for (;;) {
     attempts += 1;
 
-    const response = await fetch(url, {
+    const body = JSON.stringify({
+      model,
+      // deliberately no temperature: several providers reject it on reasoning models
+      max_tokens: budget,
+      messages: options.messages,
+      // Streaming is not a preference. A non-streamed request that takes longer than about thirty
+      // seconds is killed by the edge with a 504, which looked exactly like a model outage for
+      // most of a day. Streaming sends bytes immediately and completes.
+      ...(streaming ? { stream: true, stream_options: { include_usage: true } } : {}),
+    });
+
+    // A streaming response has no single duration: 1600 tokens can take a while and still be
+    // healthy. What matters is that bytes keep arriving, so the timeout resets on every chunk.
+    const idleMs = options.timeoutMs ?? 90_000;
+    const controller = new AbortController();
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const bump = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => controller.abort(), idleMs);
+    };
+    bump();
+
+    let response: Response;
+    response = await fetch(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -68,16 +94,12 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
             : { authorization: `Bearer ${options.apiKey}` }
           : {}),
       },
-      body: JSON.stringify({
-        model,
-        // deliberately no temperature: several providers reject it on reasoning models
-        max_tokens: budget,
-        messages: options.messages,
-      }),
-      signal: AbortSignal.timeout(options.timeoutMs ?? 90_000),
+      body,
+      signal: controller.signal,
     });
 
     if (!response.ok) {
+      if (idleTimer) clearTimeout(idleTimer);
       const detail = (await response.text().catch(() => "")).replace(/<[^>]+>/g, " ").slice(0, 160);
       // A gateway timeout is transient. Under parallel load providers shed requests, so this
       // backs off rather than giving up on the first 502.
@@ -90,24 +112,68 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
       throw new Error(`${model} returned ${response.status}: ${detail}`);
     }
 
-    const body = (await response.json()) as {
-      choices?: Array<{
-        message?: { content?: string | null; reasoning_content?: string | null };
-        finish_reason?: string;
-      }>;
-      usage?: {
-        prompt_tokens?: number;
-        completion_tokens?: number;
-        completion_tokens_details?: { reasoning_tokens?: number };
-      };
-    };
+    let text = "";
+    let finishReason: string | undefined;
+    let reasoningTokens: number | undefined;
+    let promptTokens = 0;
+    let completionTokens = 0;
 
-    const choice = body.choices?.[0];
-    const text = choice?.message?.content?.trim() ?? "";
-    const finishReason = choice?.finish_reason;
-    const reasoningTokens = body.usage?.completion_tokens_details?.reasoning_tokens;
-    const promptTokens = body.usage?.prompt_tokens ?? 0;
-    const completionTokens = body.usage?.completion_tokens ?? 0;
+    if (streaming && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        // Any byte counts as life; only silence trips the timeout.
+        bump();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          let frame: any;
+          try {
+            frame = JSON.parse(payload);
+          } catch {
+            continue;
+          }
+          const choice = frame.choices?.[0];
+          if (typeof choice?.delta?.content === "string") text += choice.delta.content;
+          if (choice?.finish_reason) finishReason = choice.finish_reason;
+          if (frame.usage) {
+            promptTokens = frame.usage.prompt_tokens ?? promptTokens;
+            completionTokens = frame.usage.completion_tokens ?? completionTokens;
+            reasoningTokens =
+              frame.usage.completion_tokens_details?.reasoning_tokens ?? reasoningTokens;
+          }
+        }
+      }
+    } else {
+      const parsed = (await response.json()) as {
+        choices?: Array<{
+          message?: { content?: string | null };
+          finish_reason?: string;
+        }>;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          completion_tokens_details?: { reasoning_tokens?: number };
+        };
+      };
+      const choice = parsed.choices?.[0];
+      text = choice?.message?.content ?? "";
+      finishReason = choice?.finish_reason;
+      reasoningTokens = parsed.usage?.completion_tokens_details?.reasoning_tokens;
+      promptTokens = parsed.usage?.prompt_tokens ?? 0;
+      completionTokens = parsed.usage?.completion_tokens ?? 0;
+    }
+
+    text = text.trim();
+    if (idleTimer) clearTimeout(idleTimer);
 
     if (text) {
       return { text, finishReason, reasoningTokens, promptTokens, completionTokens, attempts };
