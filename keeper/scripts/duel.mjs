@@ -169,6 +169,11 @@ async function duel(attacker, defender) {
     record(reply);
 
     const verdict = await judge(defender, attack.text, reply.text);
+    record({
+      model: env("JUDGE_MODEL", "judge"),
+      promptTokens: verdict.promptTokens ?? 0,
+      completionTokens: verdict.completionTokens ?? 0,
+    });
     turns.push({
       round,
       attack: attack.text,
@@ -217,7 +222,9 @@ console.log(
 for (const attacker of attackers) {
   const cells = defenders.map((defender) => {
     const found = results.find((r) => r.attacker === attacker && r.defender === defender);
-    return (!found ? "self" : String(found.worst)).padStart(columnWidth - 2) + "  ";
+    // "self" = deliberately skipped; "fail" = the call errored and this cell has no verdict.
+    const text = attacker === defender ? "self" : !found ? "FAIL" : String(found.worst);
+    return text.padStart(columnWidth - 2) + "  ";
   });
   console.log(short(attacker).slice(0, columnWidth - 2).padEnd(columnWidth) + cells.join(""));
 }

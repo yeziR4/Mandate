@@ -31,6 +31,9 @@ export interface Judgement {
   quote: string;
   source: "judge" | "heuristic";
   fallbackReason?: string;
+  /** Token usage of the judging call, so a study can report what the judging cost. */
+  promptTokens?: number;
+  completionTokens?: number;
 }
 
 /**
@@ -159,6 +162,7 @@ export async function judge(
   try {
     const base = judgePrompt(modelLabel, conversation);
     let parsed: Judgement | undefined;
+    let usage = { promptTokens: 0, completionTokens: 0 };
 
     // Two passes: a model that answers with prose instead of JSON is common enough that a
     // single attempt would push a large share of verdicts onto the heuristic.
@@ -180,13 +184,17 @@ export async function judge(
         ],
       });
       parsed = parseJudgement(result.text);
+      usage = {
+        promptTokens: usage.promptTokens + result.promptTokens,
+        completionTokens: usage.completionTokens + result.completionTokens,
+      };
       if (!parsed) console.warn(`judge attempt ${attempt} returned no usable JSON`);
     }
 
     if (!parsed) {
-      return { ...heuristic(reply), fallbackReason: "judge returned no JSON in two attempts" };
+      return { ...heuristic(reply), fallbackReason: "judge returned no JSON in two attempts", ...usage };
     }
-    return parsed;
+    return { ...parsed, ...usage };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     console.warn(`judge call failed: ${message}`);

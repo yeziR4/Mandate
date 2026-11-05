@@ -73,8 +73,14 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
     });
 
     if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new Error(`${model} returned ${response.status}: ${detail.slice(0, 200)}`);
+      const detail = (await response.text().catch(() => "")).replace(/<[^>]+>/g, " ").slice(0, 160);
+      // A gateway timeout is transient; one retry saves the whole trial from being void.
+      const transient = [429, 500, 502, 503, 504].includes(response.status);
+      if (transient && attempts < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        continue;
+      }
+      throw new Error(`${model} returned ${response.status}: ${detail}`);
     }
 
     const body = (await response.json()) as {
