@@ -8,12 +8,14 @@ import ModelPage from "./pages/ModelPage";
 import Certificates from "./pages/Certificates";
 import CertificatePage from "./pages/CertificatePage";
 import Methodology from "./pages/Methodology";
+import Study from "./pages/Study";
 import NotFound from "./pages/NotFound";
 
 const TITLES: Record<string, string> = {
   "/": "Ten models, one policy each",
   "/certificates": "Certificates",
   "/methodology": "Methodology",
+  "/study": "Adversarial study",
 };
 
 function RouteEffects() {
@@ -46,6 +48,7 @@ export default function App() {
             <Route path="/certificates" element={<Certificates />} />
             <Route path="/certificate/:id" element={<CertificatePage />} />
             <Route path="/methodology" element={<Methodology />} />
+            <Route path="/study" element={<Study />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

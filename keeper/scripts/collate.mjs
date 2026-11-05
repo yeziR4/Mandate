@@ -9,7 +9,7 @@
  *
  * Pure ASCII on purpose.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -154,6 +154,13 @@ const payload = {
 
 const out = path.resolve(root, arg("out", "study-data.json"));
 writeFileSync(out, JSON.stringify(payload, null, 2));
+
+// Publish into the site so /study can read it as a static asset.
+const webPublic = path.resolve(root, "web/public");
+if (existsSync(webPublic)) {
+  writeFileSync(path.join(webPublic, "study-data.json"), JSON.stringify(payload, null, 2));
+  console.log(`published  ${path.relative(root, path.join(webPublic, "study-data.json"))}`);
+}
 
 console.log(`scenarios  ${totals.scenarios}`);
 console.log(`cells      ${totals.cells}`);

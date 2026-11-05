@@ -8,6 +8,7 @@ const links = [
   { to: "/", label: "Board" },
   { to: "/certificates", label: "Certificates" },
   { to: "/methodology", label: "Methodology" },
+  { to: "/study", label: "Study" },
 ];
 
 function WalletButton() {
