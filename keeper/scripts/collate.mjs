@@ -4,8 +4,13 @@
  *   node keeper/scripts/collate.mjs
  *   node keeper/scripts/collate.mjs --out study-data.json
  *
- * Emits one record per scenario, one row per cell, and per-model attacker / defender scores.
- * Everything the charts need is derived here so the charts never recompute a number twice.
+ * A scenario can be spread across several files: a run that lost cells, then a repair pass that
+ * filled the gaps. So this UNIONS cells across files per scenario, newest file first, and a pair
+ * that appears twice keeps the completed record. Picking only the newest file would throw away
+ * the repair pass and quietly shrink the matrix.
+ *
+ * Spend is summed across all files, including work that was thrown away, because it is money
+ * that was actually spent.
  *
  * Pure ASCII on purpose.
  */
@@ -26,8 +31,8 @@ const short = (model) => model.split("/").pop();
 const mean = (values) => (values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null);
 
 const files = readdirSync(root).filter((name) => /^duel-.*\.json$/.test(name));
-const byScenario = new Map();
 
+const loaded = [];
 for (const name of files) {
   let data;
   try {
@@ -38,23 +43,60 @@ for (const name of files) {
   // Older runs predate the scenario field; they were all the canonical invoice policy.
   const scenario = data.scenario ?? "invoice";
   const stamp = data.ranAt ?? new Date(statSync(path.resolve(root, name)).mtimeMs).toISOString();
-  const existing = byScenario.get(scenario);
-  // Keep the most recently run file per scenario, by recorded time rather than by filename.
-  if (!existing || stamp > existing.stamp) {
-    byScenario.set(scenario, { name, data, stamp });
+  loaded.push({ name, data, scenario, stamp });
+}
+loaded.sort((a, b) => (a.stamp < b.stamp ? 1 : -1));
+
+const byScenario = new Map();
+for (const entry of loaded) {
+  const bucket = byScenario.get(entry.scenario) ?? {
+    files: [],
+    cells: new Map(),
+    spendUsd: 0,
+    rounds: null,
+    models: null,
+    unreachable: new Map(),
+    mandate: null,
+  };
+  bucket.files.push(entry.name);
+  bucket.spendUsd += typeof entry.data.costUsd === "number" ? entry.data.costUsd : 0;
+  bucket.rounds = Math.max(bucket.rounds ?? 0, entry.data.rounds ?? 0) || null;
+
+  // The intended size of a scenario is the biggest run in it, not whichever file was newest --
+  // a 1x1 smoke test must not shrink the expected matrix.
+  const runAttackers = entry.data.attackers ?? [];
+  const runDefenders = entry.data.defenders ?? [];
+  const selfDuels = runAttackers.filter((model) => runDefenders.includes(model)).length;
+  const runExpected = runAttackers.length * runDefenders.length - selfDuels;
+  if (runExpected > (bucket.expected ?? 0)) {
+    bucket.expected = runExpected;
+    bucket.models = runAttackers;
   }
+  bucket.defenders = runDefenders.length > (bucket.defenders?.length ?? 0) ? runDefenders : bucket.defenders;
+  bucket.mandate = bucket.mandate ?? entry.data.mandate ?? null;
+  for (const entryUnreachable of entry.data.unreachable ?? []) {
+    bucket.unreachable.set(entryUnreachable.model, entryUnreachable.status);
+  }
+
+  // Newest files are visited first, so the first record for a pair is the one kept.
+  for (const result of entry.data.results ?? []) {
+    const key = `${result.attacker}|${result.defender}`;
+    if (bucket.cells.has(key)) continue;
+    bucket.cells.set(key, result);
+  }
+
+  byScenario.set(entry.scenario, bucket);
 }
 
 const scenarios = [];
 const modelStats = new Map();
 
-for (const [scenario, { name, data }] of [...byScenario.entries()]) {
+for (const [scenario, bucket] of [...byScenario.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
   const cells = [];
-  let spendUsd = 0;
   let verdicts = 0;
   let fallbacks = 0;
 
-  for (const result of data.results ?? []) {
+  for (const result of bucket.cells.values()) {
     const turns = result.turns ?? [];
     verdicts += turns.length;
     fallbacks += turns.filter((turn) => turn.judgeSource === "heuristic").length;
@@ -63,6 +105,7 @@ for (const [scenario, { name, data }] of [...byScenario.entries()]) {
       (best, turn) => (!best || turn.severity >= best.severity ? turn : best),
       null
     );
+
     cells.push({
       attacker: result.attacker,
       defender: result.defender,
@@ -80,8 +123,8 @@ for (const [scenario, { name, data }] of [...byScenario.entries()]) {
             reason: worstTurn.reason,
             quote: worstTurn.quote ?? null,
             judgeSource: worstTurn.judgeSource,
-            attack: String(worstTurn.attack ?? "").slice(0, 600),
-            reply: String(worstTurn.reply ?? "").slice(0, 600),
+            attack: String(worstTurn.attack ?? "").slice(0, 900),
+            reply: String(worstTurn.reply ?? "").slice(0, 900),
           }
         : null,
     });
@@ -91,51 +134,57 @@ for (const [scenario, { name, data }] of [...byScenario.entries()]) {
       ["defender", result.defender],
     ]) {
       const key = `${role}:${model}`;
-      const entry = modelStats.get(key) ?? { role, model, worsts: [], breaks: 0, turns: 0 };
-      entry.worsts.push(result.worst);
-      entry.turns += turns.length;
-      if (result.worst === 3) entry.breaks += 1;
-      modelStats.set(key, entry);
+      const stat = modelStats.get(key) ?? { role, model, worsts: [], breaks: 0, turns: 0 };
+      stat.worsts.push(result.worst);
+      stat.turns += turns.length;
+      if (result.worst === 3) stat.breaks += 1;
+      modelStats.set(key, stat);
     }
   }
 
-  // Per-scenario spend: a file is one scenario, so the whole file's spend belongs to it.
-  spendUsd = typeof data.costUsd === "number" ? data.costUsd : 0;
+  cells.sort(
+    (a, b) => a.attacker.localeCompare(b.attacker) || a.defender.localeCompare(b.defender)
+  );
+
+  const expected = bucket.expected ?? null;
 
   scenarios.push({
     scenario,
-    file: name,
-    ranAt: data.ranAt ?? null,
-    rounds: data.rounds ?? null,
-    mandate: data.mandate ?? null,
-    models: data.attackers ?? [],
-    unreachable: data.unreachable ?? [],
+    files: bucket.files,
+    ranAt: null,
+    rounds: bucket.rounds,
+    mandate: bucket.mandate,
+    models: bucket.models ?? [],
+    defenders: bucket.defenders ?? bucket.models ?? [],
+    unreachable: [...bucket.unreachable.entries()].map(([model, status]) => ({ model, status })),
     cells,
+    expectedCells: expected,
+    missingCells: expected ? Math.max(0, expected - cells.length) : null,
     verdicts,
     fallbacks,
     breaks: cells.filter((cell) => cell.worst === 3).length,
-    spendUsd,
+    spendUsd: bucket.spendUsd,
   });
 }
 
-scenarios.sort((a, b) => a.scenario.localeCompare(b.scenario));
-
 const models = [...modelStats.values()]
-  .map((entry) => ({
-    role: entry.role,
-    model: entry.model,
-    shortName: short(entry.model),
-    cells: entry.worsts.length,
-    meanWorst: mean(entry.worsts),
-    maxWorst: Math.max(...entry.worsts),
-    breaks: entry.breaks,
-    verdicts: entry.turns,
+  .map((stat) => ({
+    role: stat.role,
+    model: stat.model,
+    shortName: short(stat.model),
+    cells: stat.worsts.length,
+    meanWorst: mean(stat.worsts),
+    maxWorst: Math.max(...stat.worsts),
+    breaks: stat.breaks,
+    verdicts: stat.turns,
   }))
   .sort((a, b) => a.role.localeCompare(b.role) || (b.meanWorst ?? 0) - (a.meanWorst ?? 0));
 
 const totals = {
   scenarios: scenarios.length,
   cells: scenarios.reduce((sum, scenario) => sum + scenario.cells.length, 0),
+  expectedCells: scenarios.reduce((sum, scenario) => sum + (scenario.expectedCells ?? 0), 0),
+  missingCells: scenarios.reduce((sum, scenario) => sum + (scenario.missingCells ?? 0), 0),
   verdicts: scenarios.reduce((sum, scenario) => sum + scenario.verdicts, 0),
   breaks: scenarios.reduce((sum, scenario) => sum + scenario.breaks, 0),
   judgeFallbacks: scenarios.reduce((sum, scenario) => sum + scenario.fallbacks, 0),
@@ -145,7 +194,7 @@ const totals = {
 
 const payload = {
   generatedAt: new Date().toISOString(),
-  gateway: [...byScenario.values()][0]?.data.baseUrl ?? null,
+  gateway: loaded[0]?.data.baseUrl ?? null,
   totals,
   perVerdictUsd: totals.verdicts ? totals.spendUsd / totals.verdicts : null,
   scenarios,
@@ -163,7 +212,7 @@ if (existsSync(webPublic)) {
 }
 
 console.log(`scenarios  ${totals.scenarios}`);
-console.log(`cells      ${totals.cells}`);
+console.log(`cells      ${totals.cells}/${totals.expectedCells}${totals.missingCells ? ` (${totals.missingCells} missing)` : ""}`);
 console.log(`verdicts   ${totals.verdicts}`);
 console.log(`breaks     ${totals.breaks}`);
 console.log(`fallbacks  ${totals.judgeFallbacks}`);
