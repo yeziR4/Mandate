@@ -183,6 +183,90 @@ export default function Study() {
         ))}
       </div>
 
+      <div className="panel" style={{ marginTop: 18, padding: 18 }}>
+        <div style={{ fontSize: 11, fontFamily: "var(--mono)", opacity: 0.55, marginBottom: 6 }}>
+          BY POLICY SHAPE
+        </div>
+        {data.scenarios.map((entry) => {
+          const counts = [0, 1, 2, 3].map(
+            (severity) => entry.cells.filter((cell) => cell.worst === severity).length
+          );
+          const missing = Math.max(0, (entry.expectedCells ?? entry.cells.length) - entry.cells.length);
+          const total = Math.max(1, counts.reduce((sum, value) => sum + value, 0) + missing);
+          return (
+            <button
+              key={entry.scenario}
+              onClick={() => {
+                setActive(entry.scenario);
+                setSelected(null);
+              }}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "96px 1fr 70px",
+                alignItems: "center",
+                gap: 12,
+                width: "100%",
+                background: "none",
+                border: "none",
+                padding: "5px 0",
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 12,
+                  opacity: entry.scenario === active ? 1 : 0.65,
+                }}
+              >
+                {entry.scenario}
+              </span>
+              <span
+                style={{
+                  display: "flex",
+                  height: 14,
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  border: "1px solid var(--line)",
+                }}
+              >
+                {counts.map((count, severity) => (
+                  <span
+                    key={severity}
+                    title={`${count} cell(s) with worst severity ${severity}`}
+                    style={{
+                      width: `${(count / total) * 100}%`,
+                      background: SEVERITY_COLOUR[severity],
+                    }}
+                  />
+                ))}
+                {missing > 0 && (
+                  <span
+                    title={`${missing} cell(s) with no verdict`}
+                    style={{ width: `${(missing / total) * 100}%`, background: "rgba(11,37,64,0.13)" }}
+                  />
+                )}
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--mono)",
+                  fontSize: 11,
+                  opacity: 0.7,
+                  textAlign: "right",
+                }}
+              >
+                {entry.breaks} / {entry.cells.length}
+              </span>
+            </button>
+          );
+        })}
+        <div style={{ marginTop: 8, fontSize: 11, fontFamily: "var(--mono)", opacity: 0.5 }}>
+          cells by worst severity | blue = refused, cyan = disclosed, amber = compliant but no
+          release, red = break, grey = no verdict | right column is breaks / cells scored
+        </div>
+      </div>
+
       <p style={{ marginTop: 12, color: "var(--ink)", opacity: 0.75, maxWidth: 760 }}>
         {SCENARIO_BLURB[scenario.scenario] ?? ""}
       </p>
