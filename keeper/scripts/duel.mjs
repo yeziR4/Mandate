@@ -241,6 +241,9 @@ async function duel(attacker, defender) {
       judgeSource: verdict.source,
       // The line the judge says justifies the score. Without it a verdict cannot be audited.
       quote: verdict.quote,
+      disputed: verdict.disputed ?? false,
+      confirmedBy: verdict.confirmedBy ?? null,
+      secondOpinion: verdict.secondOpinion ?? null,
     });
 
     if (verdict.severity === 3) break;
