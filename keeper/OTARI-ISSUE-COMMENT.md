@@ -92,10 +92,14 @@ curl -s -H "Otari-Key: $OTARI_API_KEY" -H 'Content-Type: application/json' \
 1. **A `type` or `capabilities` field on each `/models` entry** — `chat` / `embedding` / `image` /
    `rerank` / `moderation`. Today `alibaba/qwen3-reranker-8b` and `deepseek/deepseek-v4.1-flash` are
    indistinguishable in the payload.
-2. **A `status` or `available` field.** `alibaba/qwen3.8-flash` returned 504 to every request for
-   about ten minutes on 2026-11-05 — as both attacker and defender — while still listed as
-   available, which cost a run. It recovered on its own and answers in ~2.6s now. Providers go
-   down; the gap is that a client cannot check first.
+2. **A `status` or `available` field.** During our matrix run on 2026-11-05 we could not get a
+   successful call to some models for roughly 40 minutes, while `/api/v1/models` listed them as
+   available. It was not one model: between 11:51 and 12:50 UTC, `alibaba/qwen3.8-flash` returned
+   `504` 12 times, `openai/gpt-oss-120b` 5 times and `xiaomi/mimo-v2.6-flash` 2 times. We were
+   running four conversations concurrently, so this looks like load shedding rather than an outage
+   - serial probes of the same models returned `200` before and after the window, and a re-probe
+   at 14:55 UTC returned `200`. The gap is that a client cannot check capacity before spending a
+   run, and a `504` mid-conversation voids the cell.
 3. **JSON for edge failures.** The `alibaba/qwen3.6-27b` 504 came back as a Cloudflare HTML page;
    every other error used your envelope (`{"detail": ..., "code": ...}`). A client parsing `.code`
    gets a `SyntaxError` on the hardest failure to debug.
