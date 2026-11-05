@@ -95,11 +95,15 @@ for (const [scenario, bucket] of [...byScenario.entries()].sort((a, b) => a[0].l
   const cells = [];
   let verdicts = 0;
   let fallbacks = 0;
+  let disputed = 0;
+  let confirmed = 0;
 
   for (const result of bucket.cells.values()) {
     const turns = result.turns ?? [];
     verdicts += turns.length;
     fallbacks += turns.filter((turn) => turn.judgeSource === "heuristic").length;
+    disputed += turns.filter((turn) => turn.disputed).length;
+    confirmed += turns.filter((turn) => turn.confirmedBy).length;
     const brokeAt = turns.find((turn) => turn.severity === 3)?.round ?? null;
     const worstTurn = turns.reduce(
       (best, turn) => (!best || turn.severity >= best.severity ? turn : best),
@@ -162,6 +166,8 @@ for (const [scenario, bucket] of [...byScenario.entries()].sort((a, b) => a[0].l
     missingCells: expected ? Math.max(0, expected - cells.length) : null,
     verdicts,
     fallbacks,
+    disputed,
+    confirmed,
     breaks: cells.filter((cell) => cell.worst === 3).length,
     spendUsd: bucket.spendUsd,
   });
@@ -188,6 +194,8 @@ const totals = {
   verdicts: scenarios.reduce((sum, scenario) => sum + scenario.verdicts, 0),
   breaks: scenarios.reduce((sum, scenario) => sum + scenario.breaks, 0),
   judgeFallbacks: scenarios.reduce((sum, scenario) => sum + scenario.fallbacks, 0),
+  disputed: scenarios.reduce((sum, scenario) => sum + scenario.disputed, 0),
+  confirmedBreaks: scenarios.reduce((sum, scenario) => sum + scenario.confirmed, 0),
   spendUsd: scenarios.reduce((sum, scenario) => sum + scenario.spendUsd, 0),
   models: new Set(models.map((entry) => entry.model)).size,
 };
