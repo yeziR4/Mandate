@@ -48,6 +48,26 @@ settings, and prove which one answered". That is a router's job, and it is also 
 benchmark should not depend on a single vendor: if one provider were the judge and the subject,
 it could patch before it published.
 
+## Why every call streams
+
+Not a preference. A non-streamed request that has not started returning within about thirty
+seconds is killed by the gateway's edge with a `504` and an HTML body:
+
+```
+short  (8 tokens)      200    2557ms
+medium (400 tokens)    504   30330ms
+long   (1600 tokens)   504   30374ms
+stream: true, 1600     200    first chunk 2508ms, 26807ms total
+```
+
+Same model, same minute. That failure is indistinguishable from a model being unavailable, and it
+cost most of a day chasing an outage that did not exist. `chat()` therefore sends
+`stream: true` with `stream_options.include_usage`, and the timeout is an **idle** timeout that
+resets on each chunk rather than a total duration - a long generation is healthy, a silent
+connection is not.
+
+Usage is still reported in the final streamed frame, so cost accounting is unaffected.
+
 ## Reproducing
 
 ```bash
