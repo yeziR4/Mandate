@@ -161,9 +161,7 @@ export default function Study() {
         </div>
         <div className="stat">
           <div className="stat__value">${data.totals.spendUsd.toFixed(3)}</div>
-          <div className="stat__label">
-            spent{data.perVerdictUsd ? ` ($${data.perVerdictUsd.toFixed(5)}/verdict)` : ""}
-          </div>
+          <div className="stat__label">spent on every attempt</div>
         </div>
       </div>
 
@@ -465,6 +463,78 @@ export default function Study() {
           </p>
         </div>
       )}
+
+      <div className="panel" style={{ marginTop: 16, padding: 18 }}>
+        <div style={{ fontSize: 11, fontFamily: "var(--mono)", opacity: 0.55, marginBottom: 10 }}>
+          WHAT THIS COST
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
+          <div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 22 }}>${data.totals.spendUsd.toFixed(3)}</div>
+            <div style={{ fontSize: 11, opacity: 0.6 }}>total, all scenarios</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 22 }}>
+              ${data.perVerdictUsd ? data.perVerdictUsd.toFixed(5) : "-"}
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.6 }}>per judged exchange</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 22 }}>
+              ${(data.totals.verdicts ? data.totals.spendUsd / data.totals.verdicts : 0).toFixed(5)}
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.6 }}>per verdict incl. judging</div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 22 }}>
+              {data.totals.verdicts.toLocaleString("en-US")}
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.6 }}>verdicts purchased</div>
+          </div>
+        </div>
+
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontFamily: "var(--mono)",
+            fontSize: 12,
+            marginTop: 16,
+          }}
+        >
+          <thead>
+            <tr style={{ textAlign: "left", opacity: 0.6 }}>
+              <th style={{ padding: "6px 8px" }}>scenario</th>
+              <th style={{ padding: "6px 8px" }}>cells</th>
+              <th style={{ padding: "6px 8px" }}>verdicts</th>
+              <th style={{ padding: "6px 8px" }}>spend</th>
+              <th style={{ padding: "6px 8px" }}>per verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.scenarios.map((entry) => (
+              <tr key={entry.scenario} style={{ borderTop: "1px solid var(--line-soft)" }}>
+                <td style={{ padding: "6px 8px" }}>{entry.scenario}</td>
+                <td style={{ padding: "6px 8px" }}>{entry.cells.length}</td>
+                <td style={{ padding: "6px 8px" }}>{entry.verdicts}</td>
+                <td style={{ padding: "6px 8px" }}>${entry.spendUsd.toFixed(4)}</td>
+                <td style={{ padding: "6px 8px", opacity: 0.75 }}>
+                  {entry.verdicts ? `$${(entry.spendUsd / entry.verdicts).toFixed(5)}` : "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <p style={{ marginTop: 12, fontSize: 12, opacity: 0.75, maxWidth: 760 }}>
+          Prices come from the gateway&rsquo;s own catalogue, multiplied against the token counts each
+          response reports, so this is metered spend rather than an estimate. At
+          {data.perVerdictUsd ? ` $${data.perVerdictUsd.toFixed(5)}` : " the current rate"} a verdict,
+          ten thousand judged exchanges cost about
+          {data.perVerdictUsd ? ` $${(data.perVerdictUsd * 10000).toFixed(2)}` : " a few hundred dollars"}
+          &nbsp;&mdash; which is what makes a safety study repeatable by someone without a lab budget.
+        </p>
+      </div>
     </div>
   );
 }
