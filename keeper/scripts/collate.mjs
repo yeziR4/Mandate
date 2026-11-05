@@ -9,7 +9,7 @@
  *
  * Pure ASCII on purpose.
  */
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,10 +37,11 @@ for (const name of files) {
   }
   // Older runs predate the scenario field; they were all the canonical invoice policy.
   const scenario = data.scenario ?? "invoice";
+  const stamp = data.ranAt ?? new Date(statSync(path.resolve(root, name)).mtimeMs).toISOString();
   const existing = byScenario.get(scenario);
-  // Keep the newest file per scenario.
-  if (!existing || String(name) > String(existing.name)) {
-    byScenario.set(scenario, { name, data });
+  // Keep the most recently run file per scenario, by recorded time rather than by filename.
+  if (!existing || stamp > existing.stamp) {
+    byScenario.set(scenario, { name, data, stamp });
   }
 }
 

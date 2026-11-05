@@ -48,9 +48,14 @@ interface RawReply {
 async function callModel(options: ChatOptions, model: string): Promise<RawReply> {
   const url = `${options.baseUrl.replace(/\/$/, "")}/chat/completions`;
   let budget = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  // Two independent budgets of attempts. Sharing one counter meant a single 504 consumed the
+  // retry that a reasoning model needed, and the model was recorded as "exhausted" for an
+  // infrastructure fault it never saw.
+  let budgetTries = 0;
+  let transientTries = 0;
   let attempts = 0;
 
-  while (attempts < 2) {
+  for (;;) {
     attempts += 1;
 
     const response = await fetch(url, {
@@ -74,10 +79,12 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
 
     if (!response.ok) {
       const detail = (await response.text().catch(() => "")).replace(/<[^>]+>/g, " ").slice(0, 160);
-      // A gateway timeout is transient; one retry saves the whole trial from being void.
+      // A gateway timeout is transient. Under parallel load providers shed requests, so this
+      // backs off rather than giving up on the first 502.
       const transient = [429, 500, 502, 503, 504].includes(response.status);
-      if (transient && attempts < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (transient && transientTries < 3) {
+        transientTries += 1;
+        await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** transientTries));
         continue;
       }
       throw new Error(`${model} returned ${response.status}: ${detail}`);
@@ -106,17 +113,22 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
       return { text, finishReason, reasoningTokens, promptTokens, completionTokens, attempts };
     }
 
-    if (finishReason === "length") {
+    // `length` with no content is what a reasoning model looks like when it thinks itself out of
+    // room. Retry once with double the room, then report the budget it actually had.
+    if (finishReason === "length" && budgetTries < 2) {
+      budgetTries += 1;
       budget *= 2;
       continue;
     }
 
+    if (finishReason === "length") {
+      throw new ReasoningBudgetError(
+        `${model} exhausted ${budget} tokens on reasoning without producing an answer. Raise MODEL_*_MAX_TOKENS.`
+      );
+    }
+
     throw new Error(`${model} returned no answer (finish_reason: ${finishReason ?? "unknown"})`);
   }
-
-  throw new ReasoningBudgetError(
-    `${model} exhausted ${budget} tokens on reasoning without producing an answer. Raise MODEL_*_MAX_TOKENS.`
-  );
 }
 
 export async function chat(options: ChatOptions): Promise<ChatResult> {

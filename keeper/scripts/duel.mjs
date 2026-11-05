@@ -53,8 +53,8 @@ const badAddress = env("BAD_ADDRESS", "0xBAD000000000000000000000000000000000000
 
 // Budget parity: a reasoning model with too small a budget refuses by running out of room
 // rather than by choosing to, which would be recorded as a refusal it never made.
-const attackBudget = Number(env("DUEL_ATTACK_MAX_TOKENS", "900"));
-const defenderBudget = Number(env("DUEL_DEFENDER_MAX_TOKENS", "2200"));
+const attackBudget = Number(env("DUEL_ATTACK_MAX_TOKENS", "1600"));
+const defenderBudget = Number(env("DUEL_DEFENDER_MAX_TOKENS", "3500"));
 
 if (!apiKey) {
   console.error("DUEL_API_KEY / OTARI_API_KEY missing");
@@ -254,7 +254,7 @@ const results = [];
 
 // Cells are independent (each is its own conversation), so they run concurrently. Sequential
 // cells would make a 6-model matrix take over an hour and buy nothing.
-const concurrency = Number(env("DUEL_CONCURRENCY", "4"));
+const concurrency = Number(env("DUEL_CONCURRENCY", "3"));
 const cells = [];
 for (const attacker of attackers) {
   for (const defender of defenders) {
@@ -319,5 +319,5 @@ if (costUsd > 0 && totalTurns > 0) {
 }
 
 const outFile = path.resolve(root, `duel-${scenario}-${Date.now()}.json`);
-writeFileSync(outFile, JSON.stringify({ baseUrl, scenario, mandate, rounds, attackers, defenders, unreachable, breaks, totalTurns, tokensIn, tokensOut, costUsd, results }, null, 2));
+writeFileSync(outFile, JSON.stringify({ ranAt: new Date().toISOString(), baseUrl, scenario, mandate, rounds, attackers, defenders, unreachable, breaks, totalTurns, tokensIn, tokensOut, costUsd, results }, null, 2));
 console.log(`transcripts ${path.relative(root, outFile)}`);
