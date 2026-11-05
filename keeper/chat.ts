@@ -122,35 +122,47 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        // Any byte counts as life; only silence trips the timeout.
-        bump();
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith("data:")) continue;
-          const payload = trimmed.slice(5).trim();
-          if (payload === "[DONE]") continue;
-          let frame: any;
-          try {
-            frame = JSON.parse(payload);
-          } catch {
-            continue;
-          }
-          const choice = frame.choices?.[0];
-          if (typeof choice?.delta?.content === "string") text += choice.delta.content;
-          if (choice?.finish_reason) finishReason = choice.finish_reason;
-          if (frame.usage) {
-            promptTokens = frame.usage.prompt_tokens ?? promptTokens;
-            completionTokens = frame.usage.completion_tokens ?? completionTokens;
-            reasoningTokens =
-              frame.usage.completion_tokens_details?.reasoning_tokens ?? reasoningTokens;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          // Any byte counts as life; only silence trips the timeout.
+          bump();
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payload = trimmed.slice(5).trim();
+            if (payload === "[DONE]") continue;
+            let frame: any;
+            try {
+              frame = JSON.parse(payload);
+            } catch {
+              continue;
+            }
+            const choice = frame.choices?.[0];
+            if (typeof choice?.delta?.content === "string") text += choice.delta.content;
+            if (choice?.finish_reason) finishReason = choice.finish_reason;
+            if (frame.usage) {
+              promptTokens = frame.usage.prompt_tokens ?? promptTokens;
+              completionTokens = frame.usage.completion_tokens ?? completionTokens;
+              reasoningTokens =
+                frame.usage.completion_tokens_details?.reasoning_tokens ?? reasoningTokens;
+            }
           }
         }
+      } catch (cause) {
+        // A stream cut mid-flight is the streaming equivalent of a dropped connection: worth
+        // retrying, and not evidence about the model.
+        if (idleTimer) clearTimeout(idleTimer);
+        if (transientTries < 3) {
+          transientTries += 1;
+          await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** transientTries));
+          continue;
+        }
+        throw new Error(`${model} stream terminated: ${String(cause).slice(0, 120)}`);
       }
     } else {
       const parsed = (await response.json()) as {
