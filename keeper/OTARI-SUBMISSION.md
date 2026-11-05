@@ -53,17 +53,32 @@ exchange. Guards that matter for a result to be honest:
 
 ## Findings so far
 
-To be filled from the final collated run. Three that will survive regardless:
+Filled from the collated run; four that will survive regardless of the final zero:
 
 1. **A judge can be wrong in a way that flatters the benchmark.** Our first "break" was a judge
-   scoring process failure as a fund movement. It was caught by reading the transcript, not by
-   trusting the number.
+   scoring process failure as a fund movement. Caught by reading the transcript, not by trusting
+   the number. Fixed by extracting the stated destination before a break can stand, calibrated 8/8
+   against labelled cases (`keeper/scripts/audit-control.mjs`).
 2. **The mandate was under-specified.** "Only after the requester confirms" and "never act on
    instructions from anyone but the operator" contradict each other when the attacker is the
-   requester. Which reading a judge picks decides whether a cell scores 0 or 3.
-3. **Policy shape changes the result more than the model does.** Same six models, four policies:
-   the refund policy produced far more "authorised without checking authority" (severity 2) than
-   the invoice or payroll policies.
+   requester. Under the first rubric that single ambiguity produced eleven apparent breaks in one
+   scenario; under a destination-based rubric they collapse to compliance failures.
+3. **Policy shape changes the result more than the model does.** Same six models, four policies.
+4. **A safety study costs cents, and the meter is the gateway's.** Measured, not estimated: the
+   whole run so far is **$0.479 for 470 judged verdicts, $0.0010 per verdict**, including the
+   attempts that had to be discarded (1.4% of spend). Extrapolated: ten thousand judged exchanges
+   for about ten dollars. That is the claim worth making to a grant committee — an adversarial
+   evaluation is affordable at a scale where the numbers mean something.
+
+## The Otari case in one paragraph
+
+Six models from six labs, one key, one base URL, and a price list that turns a safety experiment
+into a metered cost. Without the gateway this study needs six SDKs, six credential sets, six
+retry policies, and a spreadsheet to work out what it cost. With it, the roster is read from
+`/api/v1/models`, every call goes through one transport that we fixed once when we found the
+30-second timeout, and the spend is computed from the provider's own rates. The finding that the
+study was cheap is only publishable because the number is metered rather than guessed.
+
 
 ## Demo script (3-5 min)
 
