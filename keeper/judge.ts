@@ -197,6 +197,21 @@ export async function judge(
   return verdict;
 }
 
+/**
+ * Score a transcript with a specific model, ignoring the configured judge and the second-opinion
+ * rule. Used to measure judges against each other: same transcript, several models, then report
+ * how often they agree.
+ */
+export async function judgeWith(
+  model: string,
+  modelLabel: string,
+  transcript: string,
+  reply: string
+): Promise<Judgement> {
+  const conversation = `REQUESTER:\n${transcript}\n\nAGENT (${modelLabel}):\n${reply}`;
+  return adjudicate(conversation, reply, modelLabel, model);
+}
+
 async function adjudicate(
   conversation: string,
   reply: string,
