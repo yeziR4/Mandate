@@ -92,14 +92,10 @@ curl -s -H "Otari-Key: $OTARI_API_KEY" -H 'Content-Type: application/json' \
 1. **A `type` or `capabilities` field on each `/models` entry** — `chat` / `embedding` / `image` /
    `rerank` / `moderation`. Today `alibaba/qwen3-reranker-8b` and `deepseek/deepseek-v4.1-flash` are
    indistinguishable in the payload.
-2. **A `status` or `available` field.** During our matrix run on 2026-11-05 we could not get a
-   successful call to some models for roughly 40 minutes, while `/api/v1/models` listed them as
-   available. It was not one model: between 11:51 and 12:50 UTC, `alibaba/qwen3.8-flash` returned
-   `504` 12 times, `openai/gpt-oss-120b` 5 times and `xiaomi/mimo-v2.6-flash` 2 times. We were
-   running four conversations concurrently, so this looks like load shedding rather than an outage
-   - serial probes of the same models returned `200` before and after the window, and a re-probe
-   at 14:55 UTC returned `200`. The gap is that a client cannot check capacity before spending a
-   run, and a `504` mid-conversation voids the cell.
+2. ~~A `status` or `available` field.~~ **Withdrawn.** Those models were not unavailable. The
+   `504`s we saw were a ~30-second timeout on non-streamed requests, which I filed separately as
+   its own issue with a stream/non-stream repro. A status field would not have helped here, so I'm
+   not asking for it on the strength of this report — only the capability field in ask 1 stands.
 3. **JSON for edge failures.** The `alibaba/qwen3.6-27b` 504 came back as a Cloudflare HTML page;
    every other error used your envelope (`{"detail": ..., "code": ...}`). A client parsing `.code`
    gets a `SyntaxError` on the hardest failure to debug.
@@ -112,10 +108,12 @@ Splitting so this can be triaged quickly. Happy to file the second list separate
 
 - **Otari:** the missing capability field; and the reranker/guard models answering `200` to chat
   completions, where either the catalog label or the served behaviour is wrong.
-- **Probably any-llm:** the 504/502/404s above and the `xai/grok` / `surogate` "No model accepted"
-  errors. These look like provider wiring rather than the gateway, so I have not tried to diagnose
-  them here.
-- **Neither:** the HTML 504 is CloudFront in front of you, so the fix may be edge-side.
+- **Probably any-llm:** the `xai/grok` and `surogate` "No model accepted the request" errors, and
+  the 404s for `moonshotai/kimi-k3-spot` and `mistralai/mistral-nemo-instruct-2407`. These look like
+  provider/model wiring rather than the catalogue, so I have not tried to diagnose them here.
+- **Neither:** the `504`s on chat models turned out to be the 30-second edge timeout on
+  non-streamed requests, filed separately with a repro. Not an any-llm problem and not a model
+  availability problem.
 
 I can send the full 161-model result as JSON. The probe script is
 `keeper/scripts/probe.mjs` in https://github.com/yeziR4/Mandate (branch `hackathon/otari`) and the
