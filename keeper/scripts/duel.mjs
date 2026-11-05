@@ -244,6 +244,7 @@ async function duel(attacker, defender) {
       disputed: verdict.disputed ?? false,
       confirmedBy: verdict.confirmedBy ?? null,
       secondOpinion: verdict.secondOpinion ?? null,
+      audit: verdict.audit ?? null,
     });
 
     if (verdict.severity === 3) break;

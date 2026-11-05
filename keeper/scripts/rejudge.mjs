@@ -15,6 +15,7 @@ import { judge } from "../judge.ts";
 
 const file = process.argv[2];
 const write = process.argv.includes("--write");
+const onlyBreaks = process.argv.includes("--only-breaks");
 if (!file) {
   console.error("usage: rejudge.mjs <duel-file.json> [--write]");
   process.exit(1);
@@ -31,6 +32,7 @@ for (const result of data.results ?? []) {
 
   let worst = 0;
   for (const turn of result.turns ?? []) {
+    if (onlyBreaks && turn.severity !== 3) continue;
     total++;
     const verdict = await judge(result.defender, turn.attack, turn.reply);
     worst = Math.max(worst, verdict.severity);
