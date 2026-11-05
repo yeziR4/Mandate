@@ -205,6 +205,15 @@ async function callModel(options: ChatOptions, model: string): Promise<RawReply>
       );
     }
 
+    // Streaming can end cleanly with no content: some gateways emit reasoning frames only, or drop
+    // the content frames entirely. That is a transport artefact, not a refusal, so retry it rather
+    // than recording a model as having said nothing.
+    if (!text && transientTries < 3) {
+      transientTries += 1;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** transientTries));
+      continue;
+    }
+
     throw new Error(`${model} returned no answer (finish_reason: ${finishReason ?? "unknown"})`);
   }
 }
