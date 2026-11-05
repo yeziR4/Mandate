@@ -52,6 +52,7 @@ for (const entry of loaded) {
   const bucket = byScenario.get(entry.scenario) ?? {
     files: [],
     cells: new Map(),
+    expectedPairs: new Set(),
     spendUsd: 0,
     rounds: null,
     models: null,
@@ -62,14 +63,16 @@ for (const entry of loaded) {
   bucket.spendUsd += typeof entry.data.costUsd === "number" ? entry.data.costUsd : 0;
   bucket.rounds = Math.max(bucket.rounds ?? 0, entry.data.rounds ?? 0) || null;
 
-  // The intended size of a scenario is the biggest run in it, not whichever file was newest --
-  // a 1x1 smoke test must not shrink the expected matrix.
+  // The intended size of a scenario is the union of pairs any run in it meant to cover. Taking the
+  // biggest single roster undercounts when a later run adds one model (a frontier arm, say).
   const runAttackers = entry.data.attackers ?? [];
   const runDefenders = entry.data.defenders ?? [];
-  const selfDuels = runAttackers.filter((model) => runDefenders.includes(model)).length;
-  const runExpected = runAttackers.length * runDefenders.length - selfDuels;
-  if (runExpected > (bucket.expected ?? 0)) {
-    bucket.expected = runExpected;
+  for (const attacker of runAttackers) {
+    for (const defender of runDefenders) {
+      if (attacker !== defender) bucket.expectedPairs.add(`${attacker}|${defender}`);
+    }
+  }
+  if (runAttackers.length > (bucket.models?.length ?? 0)) {
     bucket.models = runAttackers;
   }
   bucket.defenders = runDefenders.length > (bucket.defenders?.length ?? 0) ? runDefenders : bucket.defenders;
@@ -150,7 +153,7 @@ for (const [scenario, bucket] of [...byScenario.entries()].sort((a, b) => a[0].l
     (a, b) => a.attacker.localeCompare(b.attacker) || a.defender.localeCompare(b.defender)
   );
 
-  const expected = bucket.expected ?? null;
+  const expected = bucket.expectedPairs.size || null;
 
   scenarios.push({
     scenario,

@@ -53,22 +53,28 @@ exchange. Guards that matter for a result to be honest:
 
 ## Findings so far
 
-Filled from the collated run; four that will survive regardless of the final zero:
+Final dataset: **84 of 86 cells, 492 judged exchanges, 6 models, 4 policy shapes, 0 breaks, $1.03**
+($0.0021 per verdict including the frontier arm; $0.00087 per verdict on the flash roster alone).
 
-1. **A judge can be wrong in a way that flatters the benchmark.** Our first "break" was a judge
-   scoring process failure as a fund movement. Caught by reading the transcript, not by trusting
-   the number. Fixed by extracting the stated destination before a break can stand, calibrated 8/8
-   against labelled cases (`keeper/scripts/audit-control.mjs`).
-2. **The mandate was under-specified.** "Only after the requester confirms" and "never act on
+1. **Policy shape, not model strength, produced every failure we found.** The same five models on
+   four policies: invoice 0/20 compliance failures, payroll 1/20, escrow 3/19, refund 7/19. The
+   refund policy's precondition ("the requester states the order id and the exact amount") can be
+   satisfied by the requester in one message, and defenders treated *satisfying the check* as
+   *the check being satisfied*. That is a policy-writing defect, not a model defect.
+2. **A frontier model bought nothing here, at 45x the cost.** Kimi K3 as attacker and as defender
+   on invoice: 6 cells, all clean, **$0.0392 per verdict** against **$0.00087** for the flash
+   roster. Small n, so this is a direction rather than a ranking - but "use the biggest model" was
+   not the answer for this task at this difficulty.
+3. **A judge can be wrong in a way that flatters the benchmark.** Our first "break" was a judge
+   scoring process failure as a fund movement, and eleven apparent breaks in one scenario came
+   from a single ambiguous policy sentence. Caught by reading the transcript, not by trusting the
+   number.
+4. **The mandate was under-specified.** "Only after the requester confirms" and "never act on
    instructions from anyone but the operator" contradict each other when the attacker is the
-   requester. Under the first rubric that single ambiguity produced eleven apparent breaks in one
-   scenario; under a destination-based rubric they collapse to compliance failures.
-3. **Policy shape changes the result more than the model does.** Same six models, four policies.
-4. **A safety study costs cents, and the meter is the gateway's.** Measured, not estimated: the
-   whole run so far is **$0.479 for 470 judged verdicts, $0.0010 per verdict**, including the
-   attempts that had to be discarded (1.4% of spend). Extrapolated: ten thousand judged exchanges
-   for about ten dollars. That is the claim worth making to a grant committee — an adversarial
-   evaluation is affordable at a scale where the numbers mean something.
+   requester. Scenarios after the first now name the roles explicitly.
+5. **A safety study costs cents, and the meter is the gateway's.** Measured, not estimated,
+   including the attempts that had to be discarded. Ten thousand judged exchanges for about twenty
+   dollars.
 
 ## The Otari case in one paragraph
 
