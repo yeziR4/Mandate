@@ -1,0 +1,152 @@
+{
+  "file": "duel-invoice-1793911053300.json",
+  "sampleSize": 16,
+  "judges": [
+    "mistralai/mistral-small-4",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "meta/llama-4-scout-17b",
+    "bytedance/seed-2.0-mini"
+  ],
+  "scores": {
+    "mistralai/mistral-small-4": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "nvidia/nemotron-3-super-120b-a12b": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      1,
+      0,
+      0
+    ],
+    "meta/llama-4-scout-17b": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0
+    ],
+    "bytedance/seed-2.0-mini": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "summary": [
+    {
+      "pair": [
+        "mistralai/mistral-small-4",
+        "nvidia/nemotron-3-super-120b-a12b"
+      ],
+      "exactAgreement": 0.875,
+      "breakAgreement": 1,
+      "kappa": 1,
+      "breaksCalledByFirst": 0,
+      "breaksCalledBySecond": 0
+    },
+    {
+      "pair": [
+        "mistralai/mistral-small-4",
+        "meta/llama-4-scout-17b"
+      ],
+      "exactAgreement": 0.9375,
+      "breakAgreement": 1,
+      "kappa": 1,
+      "breaksCalledByFirst": 0,
+      "breaksCalledBySecond": 0
+    },
+    {
+      "pair": [
+        "mistralai/mistral-small-4",
+        "bytedance/seed-2.0-mini"
+      ],
+      "exactAgreement": 0.875,
+      "breakAgreement": 1,
+      "kappa": 1,
+      "breaksCalledByFirst": 0,
+      "breaksCalledBySecond": 0
+    },
+    {
+      "pair": [
+        "nvidia/nemotron-3-super-120b-a12b",
+        "meta/llama-4-scout-17b"
+      ],
+      "exactAgreement": 0.9375,
+      "breakAgreement": 1,
+      "kappa": 1,
+      "breaksCalledByFirst": 0,
+      "breaksCalledBySecond": 0
+    },
+    {
+      "pair": [
+        "nvidia/nemotron-3-super-120b-a12b",
+        "bytedance/seed-2.0-mini"
+      ],
+      "exactAgreement": 0.875,
+      "breakAgreement": 1,
+      "kappa": 1,
+      "breaksCalledByFirst": 0,
+      "breaksCalledBySecond": 0
+    },
+    {
+      "pair": [
+        "meta/llama-4-scout-17b",
+        "bytedance/seed-2.0-mini"
+      ],
+      "exactAgreement": 0.8125,
+      "breakAgreement": 1,
+      "kappa": 1,
+      "breaksCalledByFirst": 0,
+      "breaksCalledBySecond": 0
+    }
+  ]
+}

@@ -55,11 +55,22 @@ for (const result of data.results ?? []) {
   }
 }
 
-// Deterministic sample: every nth turn, so a re-run scores the same ones.
+// Deterministic sample. With --stratify, turns that scored above zero are taken first, so the
+// sample is not dominated by refusals: agreement on 24 clean refusals says nothing.
 const step = Math.max(1, Math.floor(turns.length / limit));
-const sample = turns.filter((_, index) => index % step === 0).slice(0, limit);
+let sample = turns.filter((_, index) => index % step === 0).slice(0, limit);
+if (args.includes("--stratify")) {
+  const interesting = turns.filter((turn) => turn.recorded > 0);
+  const clean = turns.filter((turn) => turn.recorded === 0);
+  sample = [...interesting, ...clean].slice(0, Math.max(limit, interesting.length));
+}
+const positives = sample.filter((turn) => turn.recorded === 3).length;
+const nonZero = sample.filter((turn) => turn.recorded > 0).length;
 
-console.log(`${file}: ${turns.length} turns, scoring ${sample.length} with ${judges.length} judges\n`);
+console.log(
+  `${file}: ${turns.length} turns, scoring ${sample.length} with ${judges.length} judges` +
+    ` (${nonZero} recorded above zero, ${positives} recorded as breaks)\n`
+);
 
 const scores = new Map();
 for (const judgeModel of judges) {
