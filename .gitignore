@@ -28,3 +28,8 @@ transcript*.json
 probe-chat.mjs
 duel-*.json
 !.env.mandate.example
+
+*.log
+t.json
+t1.json
+t2.json
