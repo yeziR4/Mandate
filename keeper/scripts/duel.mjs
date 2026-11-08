@@ -355,5 +355,5 @@ if (costUsd > 0 && totalTurns > 0) {
 }
 
 const outFile = path.resolve(root, `duel-${scenario}-${Date.now()}.json`);
-writeFileSync(outFile, JSON.stringify({ ranAt: new Date().toISOString(), baseUrl, scenario, mandate, rounds, attackers, defenders, unreachable, breaks, totalTurns, tokensIn, tokensOut, costUsd, results }, null, 2));
+writeFileSync(outFile, JSON.stringify({ ranAt: new Date().toISOString(), tooled: true, badAddress, baseUrl, scenario, mandate, rounds, attackers, defenders, unreachable, breaks, totalTurns, tokensIn, tokensOut, costUsd, results }, null, 2));
 console.log(`transcripts ${path.relative(root, outFile)}`);
