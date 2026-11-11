@@ -126,6 +126,28 @@ async function prices(): Promise<Map<string, { in: number; out: number }>> {
   return map;
 }
 
+/**
+ * Tools a watch agent gets: web fetch, plus whatever connector toolkit is wired up.
+ * Composio wins over the built-in IMAP reader when both are present, so the demo runs on one
+ * connector layer rather than two.
+ */
+async function watchTools(): Promise<unknown[]> {
+  const { composioConfigured, composioTools } = await import("./composio.ts");
+  if (!composioConfigured()) return WATCH_TOOLS;
+  try {
+    const { tools, slugs } = await composioTools();
+    if (slugs.size === 0) return WATCH_TOOLS;
+    const gmailOwned = [...slugs].some((slug) => slug.startsWith("GMAIL_"));
+    const local = WATCH_TOOLS.filter((tool) => {
+      const name = (tool as { function?: { name?: string } }).function?.name;
+      return !(gmailOwned && name === "gmail_list");
+    });
+    return [...local, ...tools];
+  } catch {
+    return WATCH_TOOLS;
+  }
+}
+
 export async function runOnce(agent: AgentDef, message?: string): Promise<AgentRun> {
   const baseUrl = process.env.OTARI_BASE_URL ?? "https://otari.ai/api/v1";
   const apiKey = process.env.OTARI_API_KEY ?? "";
@@ -195,7 +217,7 @@ export async function runOnce(agent: AgentDef, message?: string): Promise<AgentR
         model: agent.model,
         request: `${asked ? `${asked}\n\nRemember: ` : ""}${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
         maxSteps: 7,
-        tools: WATCH_TOOLS,
+        tools: await watchTools(),
       });
 
       const fetched = result.events

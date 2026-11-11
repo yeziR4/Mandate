@@ -214,6 +214,11 @@ export function createKeeper() {
       }
 
       if (req.method === "GET" && url.pathname === "/agents/connectors") {
+        const { composioConfigured, composioConnectors } = await import("./agents/composio.ts");
+        if (composioConfigured()) {
+          send(res, 200, { connectors: await composioConnectors() });
+          return;
+        }
         const { gmailConfigured } = await import("./agents/gmail.ts");
         send(res, 200, {
           connectors: [
@@ -227,6 +232,19 @@ export function createKeeper() {
             { id: "calendar", label: "Calendar", state: "soon" },
           ],
         });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/agents/connectors/link") {
+        const body = (await readBody(req)) as { toolkit?: string };
+        const { composioConnectLink } = await import("./agents/composio.ts");
+        const origin = req.headers.origin ?? "http://localhost:4321";
+        const url = await composioConnectLink(String(body.toolkit ?? "gmail"), origin);
+        if (!url) {
+          send(res, 400, { error: "could not create a connect link" });
+          return;
+        }
+        send(res, 200, { url });
         return;
       }
 

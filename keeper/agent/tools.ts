@@ -244,7 +244,18 @@ export async function executeTool(
       };
     }
 
-    default:
+    default: {
+      // Composio tool slugs are SCREAMING_SNAKE_CASE. Anything not handled locally is forwarded
+      // there, and Composio holds the OAuth token so we never touch credentials.
+      if (/^[A-Z0-9_]{3,}$/.test(name)) {
+        const { composioConfigured, composioExecute } = await import("../agents/composio.ts");
+        if (composioConfigured()) {
+          const result = await composioExecute(name, args);
+          ledger.reads.push({ tool: name, value: result.ok ? (result.data ?? true) : false });
+          return result;
+        }
+      }
       return { ok: false, observation: `Unknown tool ${name}.` };
+    }
   }
 }
