@@ -74,7 +74,7 @@ export interface AgentRun {
   /** Code the gateway ran for this run, with what it printed. */
   code?: Array<{ source: string; output: string }>;
   /** Which provider served the worker model, and whether routing had to fall back to reach it. */
-  servedBy?: { provider: string | null; fallback: boolean };
+  servedBy?: { provider: string | null; model: string | null; fallback: boolean; attempts: number };
   /** The sentinel's verdict: a second, smaller model that only decides whether this needs attention. */
   alert?: boolean;
   headline?: string;
@@ -90,14 +90,28 @@ const visitorsFile = path.join(dataDir, "visitors.json");
  * them they show the gateway doing different work: reading the web, running code, and calling an
  * MCP server, on three different open-weight models.
  */
+/** The first starter runs on a routing policy when one is configured, so routing is in use from the first load. */
+const STARTER_ROUTE = (process.env.PUP_ROUTES ?? "").split(",")[0]?.trim() || "deepseek/deepseek-v4.1-flash";
+
 const STARTERS: Array<Omit<AgentDef, "owner" | "createdAt" | "enabled" | "lastRunAt">> = [
   {
     id: "ag_watch",
     name: "ETH price watch",
     task: "Check the ETH price in USD and flag it if it drops below $2,000.",
-    hint: "Use http_get once with https://api.coinbase.com/v2/prices/ETH-USD/spot . Reply with one sentence: the price, and whether it is below 2000.",
-    model: "deepseek/deepseek-v4.1-flash",
+    hint: "Fetch https://api.coinbase.com/v2/prices/ETH-USD/spot once. Reply with one sentence: the price, and whether it is below 2000.",
+    // A routing policy, not a model: Otari picks the provider and falls back if the first one fails.
+    model: STARTER_ROUTE,
     everyMinutes: 30,
+    kind: "watch",
+    connectors: [],
+  },
+  {
+    id: "ag_news",
+    name: "AI news scout",
+    task: "Search the web for the most significant AI model release of the past week and report it in one sentence.",
+    hint: "Run one web search. Reply with one sentence naming the model and who released it, then the source site in brackets.",
+    model: "z-ai/glm-5.3-flash",
+    everyMinutes: 240,
     kind: "watch",
     connectors: [],
   },
@@ -105,7 +119,7 @@ const STARTERS: Array<Omit<AgentDef, "owner" | "createdAt" | "enabled" | "lastRu
     id: "ag_jobs",
     name: "Hiring scout",
     task: "Find the newest Hacker News hiring threads and say how busy each one is.",
-    hint: "Use http_get once with https://hn.algolia.com/api/v1/search_by_date?tags=story,author_whoishiring&hitsPerPage=3&attributesToRetrieve=title,num_comments,created_at . Reply with three lines, one per thread: the title, then the number of replies in brackets. No other text.",
+    hint: "Fetch https://hn.algolia.com/api/v1/search_by_date?tags=story,author_whoishiring&hitsPerPage=3&attributesToRetrieve=title,num_comments,created_at once. Reply with three lines, one per thread: the title, then the number of replies in brackets. No other text.",
     model: "z-ai/glm-5.3-flash",
     everyMinutes: 60,
     kind: "watch",
@@ -115,7 +129,7 @@ const STARTERS: Array<Omit<AgentDef, "owner" | "createdAt" | "enabled" | "lastRu
     id: "ag_ratio",
     name: "ETH/BTC ratio",
     task: "Work out how many ETH one BTC buys right now, and flag it if that is more than 40.",
-    hint: "Use http_get for https://api.coinbase.com/v2/prices/BTC-USD/spot and https://api.coinbase.com/v2/prices/ETH-USD/spot , then run code to divide the two prices. Reply with one sentence giving the ratio to two decimals and both prices.",
+    hint: "Fetch https://api.coinbase.com/v2/prices/BTC-USD/spot and https://api.coinbase.com/v2/prices/ETH-USD/spot , then run code to divide the two prices. Reply with one sentence giving the ratio to two decimals and both prices.",
     model: "alibaba/qwen3.8-flash",
     everyMinutes: 60,
     kind: "watch",
@@ -140,6 +154,13 @@ const STARTERS: Array<Omit<AgentDef, "owner" | "createdAt" | "enabled" | "lastRu
     ],
   },
 ];
+
+/** Routing policies created in the Otari dashboard, offered beside real models. */
+export const routes = () =>
+  (process.env.PUP_ROUTES ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
 
 /** The small model that reads each scheduled report and decides whether it needs attention. */
 const sentinelModel = () => process.env.PUP_SENTINEL_MODEL?.trim() || "google/gemma-3-12b-it";
@@ -253,12 +274,32 @@ export function migrateStarters(): void {
       continue;
     }
     const starter = byId.get(base);
-    if (starter && base === "ag_jobs" && agent.hint !== starter.hint) {
+    if (starter && agent.hint !== starter.hint) {
       changed = true;
-      next.push({ ...agent, task: starter.task, hint: starter.hint, lastRunAt: undefined });
-      continue;
+      // Follow the starter's current wording. The model is only moved while it is still the one
+      // the starter shipped with, so a visitor's own choice is kept.
+      const untouched = agent.model === "deepseek/deepseek-v4.1-flash" && base === "ag_watch";
+      next.push({
+        ...agent,
+        task: starter.task,
+        hint: starter.hint,
+        model: untouched ? starter.model : agent.model,
+        lastRunAt: base === "ag_jobs" ? undefined : agent.lastRunAt,
+      });
+    } else {
+      next.push(agent);
     }
-    next.push(agent);
+    // Starters added since this visitor arrived.
+    if (base === "ag_watch" && !all.some((entry) => entry.id === `ag_news_${suffix}`)) {
+      changed = true;
+      next.push({
+        ...byId.get("ag_news")!,
+        id: `ag_news_${suffix}`,
+        owner: agent.owner,
+        enabled: true,
+        createdAt: new Date().toISOString(),
+      });
+    }
   }
 
   if (changed) writeJson(agentsFile, next);
@@ -395,24 +436,33 @@ function gatewayTools(): unknown[] {
   return tools;
 }
 
+/**
+ * Tools the keeper runs. Once the gateway reads the web itself, the keeper's own fetch steps aside
+ * so every page an agent reads goes through Otari and shows up in its usage.
+ */
+function localTools(): unknown[] {
+  if (process.env.PUP_OTARI_WEB !== "1") return WATCH_TOOLS;
+  return WATCH_TOOLS.filter((tool) => (tool as { function?: { name?: string } }).function?.name !== "http_get");
+}
+
 async function watchTools(agent: AgentDef, asked = ""): Promise<unknown[]> {
   const own = [
     ...(agent.custom ?? []).filter((connector) => connector.kind !== "mcp").map(customTool),
     ...gatewayTools(),
   ];
   const { composioConfigured, composioTools } = await import("./composio.ts");
-  if (!composioConfigured()) return [...WATCH_TOOLS, ...own];
+  if (!composioConfigured()) return [...localTools(), ...own];
   try {
     const { tools, slugs } = await composioTools(agent.connectors, `${asked} ${agent.task}`.trim());
-    if (slugs.size === 0) return [...WATCH_TOOLS, ...own];
+    if (slugs.size === 0) return [...localTools(), ...own];
     const gmailOwned = [...slugs].some((slug) => slug.startsWith("GMAIL_"));
-    const local = WATCH_TOOLS.filter((tool) => {
+    const local = localTools().filter((tool) => {
       const name = (tool as { function?: { name?: string } }).function?.name;
       return !(gmailOwned && name === "gmail_list");
     });
     return [...local, ...tools, ...own];
   } catch {
-    return [...WATCH_TOOLS, ...own];
+    return [...localTools(), ...own];
   }
 }
 
@@ -562,7 +612,7 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         name: "watch",
         policy: [
           "You are an always-on agent reporting to your owner.",
-          "Use http_get to look at the page you were told to check, or any other page you need.",
+          "Fetch the page you were told to check. When you were not given one, search the web.",
           "When the job needs arithmetic or comparing numbers, run code for it instead of working it out yourself.",
           "Reply with the finding only, in the shortest form that answers the job.",
           "Never mention tools, code, requests, HTTP status, truncation, parsing, or what you would do next.",
@@ -631,7 +681,7 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         .filter((call) => call.type === "code_execution" && call.code)
         .map((call) => ({ source: String(call.code).slice(0, 1500), output: String(call.stdout ?? "").slice(0, 500) }));
       if (code.length) run.code = code.slice(0, 3);
-      if (result.servedBy) run.servedBy = { provider: result.servedBy.provider, fallback: result.servedBy.fallback };
+      if (result.servedBy) run.servedBy = result.servedBy;
 
       // A second, smaller model in a different role: it does none of the work, it only reads the
       // report and decides whether the owner needs to look. Scheduled runs only.
@@ -647,7 +697,13 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
     }
 
     const table = await prices();
-    const price = table.get(agent.model);
+    // A routing policy has no price of its own: price the run by the model that actually served it.
+    const served = run.servedBy?.model?.split("/").pop()?.toLowerCase();
+    const price =
+      table.get(agent.model) ??
+      (served
+        ? [...table.entries()].find(([id]) => id.split("/").pop()?.toLowerCase() === served)?.[1]
+        : undefined);
     if (price) {
       run.costUsd = (run.promptTokens * price.in + run.completionTokens * price.out) / 1e6;
       const watcher = table.get(sentinelModel());

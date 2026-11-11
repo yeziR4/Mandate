@@ -24,6 +24,7 @@ import {
   MIN_EVERY_MINUTES,
   ownedAgent,
   recentRuns,
+  routes,
   runOnce,
   saveAgent,
   seedAgents,
@@ -294,7 +295,9 @@ export function createKeeper() {
       }
 
       if (req.method === "GET" && url.pathname === "/agents/models") {
-        send(res, 200, { models: await listGatewayModels() });
+        // Routing policies first: they are picked like a model, and Otari decides who serves them.
+        const policies = routes().map((id) => ({ id, inPrice: null, outPrice: null, route: true }));
+        send(res, 200, { models: [...policies, ...(await listGatewayModels())] });
         return;
       }
 

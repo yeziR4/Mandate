@@ -31,6 +31,8 @@ const VISITOR = (() => {
 
 interface GatewayModel {
   id: string;
+  /** A routing policy: Otari picks the provider and falls back when one fails. */
+  route?: boolean;
   inPrice: number | null;
   outPrice: number | null;
 }
@@ -51,7 +53,7 @@ interface AgentRun {
   /** What the run leaned on: "fetch", "code", "mcp:deepwiki", "web search", an app name. */
   used?: string[];
   code?: Array<{ source: string; output: string }>;
-  servedBy?: { provider: string | null; fallback: boolean };
+  servedBy?: { provider: string | null; model?: string | null; fallback: boolean; attempts?: number };
   /** Verdict from the sentinel, a second model that only decides whether this needs attention. */
   alert?: boolean;
   headline?: string;
@@ -463,7 +465,7 @@ function ModelPicker({
                   {shortModel(model.id)}
                 </span>
                 <span className="wk-picker__price">
-                  {price(model.inPrice)} / {price(model.outPrice)}
+                  {model.route ? "route with fallback" : `${price(model.inPrice)} / ${price(model.outPrice)}`}
                 </span>
               </button>
             ))}
@@ -542,9 +544,11 @@ function Meter({ agent, models }: { agent: Agent; models: GatewayModel[] }) {
         <div className="wk-label">Running on</div>
         <div className="wk-meter__model">{shortModel(agent.model)}</div>
         <div className="wk-meter__price">
-          {model
-            ? `${price(model.inPrice)} in ${DOT} ${price(model.outPrice)} out, per 1M tokens`
-            : provider(agent.model)}
+          {model?.route
+            ? "A routing policy. Otari picks the provider and falls back if the first one fails."
+            : model
+              ? `${price(model.inPrice)} in ${DOT} ${price(model.outPrice)} out, per 1M tokens`
+              : provider(agent.model)}
         </div>
       </div>
 
@@ -1041,7 +1045,8 @@ export default function Wick() {
                                   ))}
                                   {entry.servedBy?.provider && (
                                     <span className="wk-used__note">
-                                      served by {entry.servedBy.provider}
+                                      {entry.model.includes("/") ? "served by " : `routed to ${entry.servedBy.model ?? "a model"} on `}
+                                      {entry.servedBy.provider}
                                       {entry.servedBy.fallback ? " after a fallback" : ""}
                                     </span>
                                   )}

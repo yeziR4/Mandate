@@ -12,6 +12,8 @@ primary_region = 'ams'
 [env]
   AUTO_RELAY = 'false'
   PORT = '8787'
+  PUP_OTARI_WEB = '1'
+  PUP_ROUTES = 'pup-auto'
 
 [[mounts]]
   source = 'keeper_data'
