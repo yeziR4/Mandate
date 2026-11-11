@@ -177,6 +177,33 @@ export async function composioConnectors(user = fallbackUser()): Promise<Connect
   ];
 }
 
+/** Find (and cache) the auth config for a toolkit. Composio-managed OAuth needs no client secret. */
+const authConfigCache = new Map<string, string>();
+
+export async function authConfigFor(toolkit: string): Promise<string | null> {
+  const cached = authConfigCache.get(toolkit);
+  if (cached) return cached;
+
+  const override = env(`COMPOSIO_${toolkit.toUpperCase()}_AUTH_CONFIG`);
+  if (override) {
+    authConfigCache.set(toolkit, override);
+    return override;
+  }
+
+  try {
+    const response = await fetch(`${BASE}/auth_configs?toolkit_slug=${toolkit}&limit=1`, {
+      headers: headers(),
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { items?: Array<{ id?: string }> };
+    const id = body.items?.[0]?.id ?? null;
+    if (id) authConfigCache.set(toolkit, id);
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 /** A link the user can open to authorise a toolkit. */
 export async function composioConnectLink(
   toolkit: string,
@@ -184,13 +211,17 @@ export async function composioConnectLink(
   user = fallbackUser()
 ): Promise<string | null> {
   if (!composioConfigured()) return null;
+
+  const authConfigId = await authConfigFor(toolkit);
+  if (!authConfigId) return null;
+
   try {
     const response = await fetch(`${BASE}/connected_accounts/link`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({
         user_id: user,
-        toolkit_slug: toolkit,
+        auth_config_id: authConfigId,
         callback_url: callbackUrl,
       }),
     });

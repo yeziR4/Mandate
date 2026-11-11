@@ -9,7 +9,7 @@
     "enabled": true,
     "kind": "watch",
     "createdAt": "2026-11-11T00:00:00.000Z",
-    "lastRunAt": "2026-11-11T14:03:08.525Z"
+    "lastRunAt": "2026-11-11T14:50:11.950Z"
   },
   {
     "id": "ag_jobs",
@@ -20,17 +20,19 @@
     "everyMinutes": 60,
     "enabled": true,
     "kind": "watch",
-    "createdAt": "2026-11-11T00:00:00.000Z"
+    "createdAt": "2026-11-11T00:00:00.000Z",
+    "lastRunAt": "2026-11-11T14:50:16.583Z"
   },
   {
     "id": "ag_inbox",
     "name": "Inbox digest",
     "task": "Summarise the unread mail in my inbox in three lines or fewer.",
-    "hint": "Use gmail_list once with unreadOnly true and limit 6. Reply with one line per message: sender, then what it wants. If there is nothing unread, say so in one line.",
+    "hint": "Read the six most recent unread messages using whichever Gmail read tool is available (prefer the GMAIL_ tool over any local one). Reply with one line per message: sender, then what it wants. If there is nothing unread, say so in one line.",
     "model": "alibaba/qwen3.8-flash",
     "everyMinutes": 60,
     "enabled": true,
     "kind": "watch",
-    "createdAt": "2026-11-11T00:00:00.000Z"
+    "createdAt": "2026-11-11T00:00:00.000Z",
+    "lastRunAt": "2026-11-11T14:50:23.084Z"
   }
 ]
