@@ -57,33 +57,46 @@ function openAiTool(tool: ComposioTool) {
 }
 
 /** How many tools an uncurated toolkit contributes. Same reason as CURATED: fewer is better. */
-const UNCURATED_LIMIT = 6;
+const UNCURATED_LIMIT = 8;
 
 const toolkitTools = new Map<string, { at: number; tools: ComposioTool[] }>();
 
-/** The tools one toolkit gives an agent: the curated set when we have one, otherwise its first few. */
-async function toolsOf(toolkit: string): Promise<ComposioTool[]> {
-  const cached = toolkitTools.get(toolkit);
+async function fetchTools(params: string): Promise<ComposioTool[]> {
+  try {
+    const response = await fetch(`${BASE}/tools?${params}&toolkit_versions=latest`, { headers: headers() });
+    if (!response.ok) return [];
+    return ((await response.json()) as { items?: ComposioTool[] }).items ?? [];
+  } catch {
+    return []; // toolkit unavailable: skip it rather than failing the run
+  }
+}
+
+/**
+ * The tools one toolkit gives an agent. A curated toolkit gives its curated set. Anything else can
+ * have hundreds of tools (GitHub has 883), so we ask Composio for the ones that match the job, and
+ * fall back to the toolkit's featured tools when the job text matches nothing.
+ */
+async function toolsOf(toolkit: string, job: string): Promise<ComposioTool[]> {
+  const curated = CURATED[toolkit];
+  const key = curated ? toolkit : `${toolkit}\n${job}`;
+  const cached = toolkitTools.get(key);
   if (cached && Date.now() - cached.at < 10 * 60_000) return cached.tools;
 
-  let picked: ComposioTool[] = [];
-  try {
-    const response = await fetch(
-      `${BASE}/tools?toolkit_slug=${encodeURIComponent(toolkit)}&toolkit_versions=latest&limit=200`,
-      { headers: headers() }
-    );
-    if (response.ok) {
-      const items = ((await response.json()) as { items?: ComposioTool[] }).items ?? [];
-      const curated = CURATED[toolkit];
-      picked = curated
-        ? items.filter((tool) => curated.includes(tool.slug))
-        : items.slice(0, UNCURATED_LIMIT);
-    }
-  } catch {
-    /* toolkit unavailable: skip it rather than failing the run */
+  const slug = encodeURIComponent(toolkit);
+  let picked: ComposioTool[];
+  if (curated) {
+    picked = (await fetchTools(`toolkit_slug=${slug}&limit=200`)).filter((tool) => curated.includes(tool.slug));
+  } else {
+    picked = job
+      ? await fetchTools(`toolkit_slug=${slug}&query=${encodeURIComponent(job.slice(0, 200))}&limit=${UNCURATED_LIMIT}`)
+      : [];
+    if (picked.length === 0) picked = await fetchTools(`toolkit_slug=${slug}&important=true&limit=${UNCURATED_LIMIT}`);
+    if (picked.length === 0) picked = await fetchTools(`toolkit_slug=${slug}&limit=${UNCURATED_LIMIT}`);
+    picked = picked.slice(0, UNCURATED_LIMIT);
   }
 
-  toolkitTools.set(toolkit, { at: Date.now(), tools: picked });
+  if (toolkitTools.size > 500) toolkitTools.clear();
+  toolkitTools.set(key, { at: Date.now(), tools: picked });
   return picked;
 }
 
@@ -92,7 +105,8 @@ async function toolsOf(toolkit: string): Promise<ComposioTool[]> {
  * With no list (records from before agents chose their apps) it is every curated toolkit.
  */
 export async function composioTools(
-  toolkits?: string[]
+  toolkits?: string[],
+  job = ""
 ): Promise<{ tools: unknown[]; slugs: Set<string> }> {
   if (!composioConfigured()) return { tools: [], slugs: new Set() };
 
@@ -100,7 +114,7 @@ export async function composioTools(
   const slugs = new Set<string>();
 
   for (const toolkit of toolkits ?? Object.keys(CURATED)) {
-    for (const tool of await toolsOf(toolkit.toLowerCase())) {
+    for (const tool of await toolsOf(toolkit.toLowerCase(), job)) {
       if (slugs.has(tool.slug)) continue;
       tools.push(openAiTool(tool));
       slugs.add(tool.slug);
@@ -287,7 +301,24 @@ export async function authConfigFor(toolkit: string): Promise<string | null> {
     });
     if (!response.ok) return null;
     const body = (await response.json()) as { items?: Array<{ id?: string }> };
-    const id = body.items?.[0]?.id ?? null;
+    let id = body.items?.[0]?.id ?? null;
+
+    // First time anyone connects this app: make a Composio-managed auth config for it. This only
+    // succeeds for apps Composio can run the OAuth for; the rest need a developer app of our own.
+    if (!id) {
+      const created = await fetch(`${BASE}/auth_configs`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          toolkit: { slug: toolkit },
+          auth_config: { type: "use_composio_managed_auth", credentials: {}, restrict_to_following_tools: [] },
+        }),
+      });
+      if (created.ok) {
+        id = ((await created.json()) as { auth_config?: { id?: string } }).auth_config?.id ?? null;
+      }
+    }
+
     if (id) authConfigCache.set(toolkit, id);
     return id;
   } catch {

@@ -285,12 +285,12 @@ async function prices(): Promise<Map<string, { in: number; out: number }>> {
  * Composio wins over the built-in IMAP reader when both are present, so the demo runs on one
  * connector layer rather than two.
  */
-async function watchTools(agent: AgentDef): Promise<unknown[]> {
+async function watchTools(agent: AgentDef, asked = ""): Promise<unknown[]> {
   const own = (agent.custom ?? []).map(customTool);
   const { composioConfigured, composioTools } = await import("./composio.ts");
   if (!composioConfigured()) return [...WATCH_TOOLS, ...own];
   try {
-    const { tools, slugs } = await composioTools(agent.connectors);
+    const { tools, slugs } = await composioTools(agent.connectors, `${asked} ${agent.task}`.trim());
     if (slugs.size === 0) return [...WATCH_TOOLS, ...own];
     const gmailOwned = [...slugs].some((slug) => slug.startsWith("GMAIL_"));
     const local = WATCH_TOOLS.filter((tool) => {
@@ -396,7 +396,7 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         model: agent.model,
         request: `${asked ? `${asked}\n\nRemember: ` : ""}${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
         maxSteps: 7,
-        tools: await watchTools(agent),
+        tools: await watchTools(agent, asked),
         userId,
         custom: agent.custom,
       });
