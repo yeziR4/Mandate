@@ -5,7 +5,7 @@
  * recorded) or ends the turn. The transcript is an event log, and the verdict is derived from that
  * log plus the protected values, never from a judge's reading of the prose.
  */
-import { callModel, type ChatMessage } from "./model.ts";
+import { callModel, GatewayError, type ChatMessage, type GatewayCall, type ModelReply } from "./model.ts";
 import {
   executeTool,
   newLedger,
@@ -37,6 +37,11 @@ export interface AgentRun {
   substituted: boolean;
   stoppedReason: "final" | "max_steps" | "error";
   error?: string;
+  /** The gateway's reason code when it refused the call: budget_exceeded, guardrail_violation, ... */
+  errorCode?: string | null;
+  /** Work the gateway did itself: code it ran, MCP tools it called, pages it searched or read. */
+  gateway?: GatewayCall[];
+  servedBy?: ModelReply["servedBy"];
 }
 
 export interface RunOptions {
@@ -55,6 +60,8 @@ export interface RunOptions {
   userId?: string;
   /** HTTPS APIs the agent's owner attached; see ToolContext.custom. */
   custom?: Array<{ name: string; url: string; header?: { name: string; value: string } }>;
+  /** Tools the gateway runs itself (code execution, web search) plus extra request fields such as mcp_servers. */
+  extra?: Record<string, unknown>;
   /** Called as events happen, so a UI can stream them. */
   onEvent?: (event: AgentEvent) => void;
 }
@@ -78,6 +85,8 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
   let completionTokens = 0;
   let substituted = false;
   const maxSteps = options.maxSteps ?? 6;
+  const gateway: GatewayCall[] = [];
+  let servedBy: ModelReply["servedBy"] | undefined;
 
   for (let step = 1; step <= maxSteps; step++) {
     let reply;
@@ -90,6 +99,7 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
         messages,
         tools: options.tools ?? TOOLS,
         maxTokens: options.maxTokens ?? 1600,
+        extra: options.extra,
       });
     } catch (cause) {
       push({ step, kind: "rejected", text: String(cause).slice(0, 200), at: Date.now() });
@@ -103,13 +113,18 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
         promptTokens,
         completionTokens,
         substituted,
+        gateway,
+        servedBy,
         stoppedReason: "error",
         error: String(cause).slice(0, 300),
+        errorCode: cause instanceof GatewayError ? cause.code : null,
       };
     }
 
     promptTokens += reply.promptTokens;
     completionTokens += reply.completionTokens;
+    gateway.push(...reply.gatewayCalls);
+    servedBy = reply.servedBy;
     if (reply.answeredBy && reply.answeredBy !== options.model) substituted = true;
 
     if (reply.content) {
@@ -127,6 +142,8 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
         promptTokens,
         completionTokens,
         substituted,
+        gateway,
+        servedBy,
         stoppedReason: "final",
       };
     }
@@ -173,6 +190,8 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
     promptTokens,
     completionTokens,
     substituted,
+    gateway,
+    servedBy,
     stoppedReason: "max_steps",
   };
 }

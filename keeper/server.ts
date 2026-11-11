@@ -29,6 +29,7 @@ import {
   seedAgents,
   startScheduler,
   type AgentDef,
+  migrateStarters,
   type CustomConnector,
 } from "./agents/service.ts";
 import { listGatewayModels } from "./agents/models.ts";
@@ -70,6 +71,7 @@ function cleanCustom(input: unknown): CustomConnector[] {
     const headerName = String(header.name ?? "").trim();
     const headerValue = String(header.value ?? "").trim();
     out.push({
+      kind: item.kind === "mcp" ? "mcp" : "api",
       name,
       url: url.href.slice(0, 300),
       description: description || `The ${name} API.`,
@@ -86,6 +88,7 @@ function publicAgent(agent: AgentDef) {
   return {
     ...agent,
     custom: (agent.custom ?? []).map((connector) => ({
+      kind: connector.kind ?? "api",
       name: connector.name,
       url: connector.url,
       description: connector.description,
@@ -540,6 +543,7 @@ server.listen(config.port, () => {
   // Always-on agents: the scheduler wakes due agents every 20s.
   if (process.env.AGENTS_ENABLED !== "0") {
     seedAgents();
+    migrateStarters();
     startScheduler((run) => {
       console.log(`agent run ${run.agentId} on ${run.model}: ${run.ok ? "ok" : "failed"} in ${run.ms}ms`);
     });

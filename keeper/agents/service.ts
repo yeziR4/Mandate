@@ -22,6 +22,8 @@ const dataDir = path.resolve(root, "data");
 
 /** An HTTPS API the owner attached themselves. The agent gets one tool per connector. */
 export interface CustomConnector {
+  /** "api": a read-only HTTPS API we call. "mcp": an MCP server the gateway connects to itself. */
+  kind?: "api" | "mcp";
   name: string;
   /** Base URL. Calls are confined to this origin and path prefix. */
   url: string;
@@ -67,18 +69,80 @@ export interface AgentRun {
   costUsd: number | null;
   ok: boolean;
   error?: string;
+  /** What the run leaned on, for the receipt: "code", "mcp:deepwiki", "web search", "fetch". */
+  used?: string[];
+  /** Code the gateway ran for this run, with what it printed. */
+  code?: Array<{ source: string; output: string }>;
+  /** Which provider served the worker model, and whether routing had to fall back to reach it. */
+  servedBy?: { provider: string | null; fallback: boolean };
+  /** The sentinel's verdict: a second, smaller model that only decides whether this needs attention. */
+  alert?: boolean;
+  headline?: string;
+  sentinelModel?: string;
 }
 
 const agentsFile = path.join(dataDir, "agents.json");
 const runsFile = path.join(dataDir, "runs.json");
 const visitorsFile = path.join(dataDir, "visitors.json");
 
-/** The agents every new visitor starts with, and the apps each one needs. */
-const TEMPLATE_CONNECTORS: Record<string, string[]> = {
-  ag_watch: [],
-  ag_jobs: [],
-  ag_inbox: ["gmail"],
-};
+/**
+ * The agents every new visitor starts with. Each one works with nothing connected, and between
+ * them they show the gateway doing different work: reading the web, running code, and calling an
+ * MCP server, on three different open-weight models.
+ */
+const STARTERS: Array<Omit<AgentDef, "owner" | "createdAt" | "enabled" | "lastRunAt">> = [
+  {
+    id: "ag_watch",
+    name: "ETH price watch",
+    task: "Check the ETH price in USD and flag it if it drops below $2,000.",
+    hint: "Use http_get once with https://api.coinbase.com/v2/prices/ETH-USD/spot . Reply with one sentence: the price, and whether it is below 2000.",
+    model: "deepseek/deepseek-v4.1-flash",
+    everyMinutes: 30,
+    kind: "watch",
+    connectors: [],
+  },
+  {
+    id: "ag_jobs",
+    name: "Hiring scout",
+    task: "Find the newest Hacker News hiring threads and say how busy each one is.",
+    hint: "Use http_get once with https://hn.algolia.com/api/v1/search_by_date?tags=story,author_whoishiring&hitsPerPage=3&attributesToRetrieve=title,num_comments,created_at . Reply with three lines, one per thread: the title, then the number of replies in brackets. No other text.",
+    model: "z-ai/glm-5.3-flash",
+    everyMinutes: 60,
+    kind: "watch",
+    connectors: [],
+  },
+  {
+    id: "ag_ratio",
+    name: "ETH/BTC ratio",
+    task: "Work out how many ETH one BTC buys right now, and flag it if that is more than 40.",
+    hint: "Use http_get for https://api.coinbase.com/v2/prices/BTC-USD/spot and https://api.coinbase.com/v2/prices/ETH-USD/spot , then run code to divide the two prices. Reply with one sentence giving the ratio to two decimals and both prices.",
+    model: "alibaba/qwen3.8-flash",
+    everyMinutes: 60,
+    kind: "watch",
+    connectors: [],
+  },
+  {
+    id: "ag_repo",
+    name: "Repo brief",
+    task: "Explain in two sentences what the mozilla-ai/any-llm repository is for.",
+    hint: "Ask the DeepWiki connector about the repository mozilla-ai/any-llm. Reply with two plain sentences.",
+    model: "deepseek/deepseek-v4.1-flash",
+    everyMinutes: 1440,
+    kind: "watch",
+    connectors: [],
+    custom: [
+      {
+        kind: "mcp",
+        name: "DeepWiki",
+        url: "https://mcp.deepwiki.com/mcp",
+        description: "Answers questions about public GitHub repositories.",
+      },
+    ],
+  },
+];
+
+/** The small model that reads each scheduled report and decides whether it needs attention. */
+const sentinelModel = () => process.env.PUP_SENTINEL_MODEL?.trim() || "google/gemma-3-12b-it";
 
 /** Limits that keep one browser from running up the shared gateway bill. */
 export const MAX_AGENTS_PER_VISITOR = 8;
@@ -140,16 +204,8 @@ export function agentsFor(user: string): AgentDef[] {
 
     const all = listAgents();
     const suffix = Math.random().toString(36).slice(2, 8);
-    for (const template of all.filter((agent) => !agent.owner && agent.id in TEMPLATE_CONNECTORS)) {
-      all.push({
-        ...template,
-        id: `${template.id}_${suffix}`,
-        owner: user,
-        connectors: TEMPLATE_CONNECTORS[template.id],
-        enabled: true,
-        createdAt: now,
-        lastRunAt: undefined,
-      });
+    for (const starter of STARTERS) {
+      all.push({ ...starter, id: `${starter.id}_${suffix}`, owner: user, enabled: true, createdAt: now });
     }
     writeJson(agentsFile, all);
   } else {
@@ -162,6 +218,50 @@ export function agentsFor(user: string): AgentDef[] {
   }
 
   return listAgents().filter((agent) => agent.owner === user);
+}
+
+/**
+ * Bring visitors who arrived before the current starters up to date: fix the hiring scout's
+ * source, and swap the inbox digest (which fails until Gmail is connected) for starters that work
+ * on arrival. Agents a visitor made themselves are never touched.
+ */
+export function migrateStarters(): void {
+  const all = listAgents();
+  const byId = new Map(STARTERS.map((starter) => [starter.id, starter]));
+  const next: AgentDef[] = [];
+  let changed = false;
+
+  for (const agent of all) {
+    const match = agent.owner ? /^(ag_[a-z]+)_([a-z0-9]{4,8})$/.exec(agent.id) : null;
+    if (!match) {
+      next.push(agent);
+      continue;
+    }
+    const [, base, suffix] = match;
+    if (base === "ag_inbox") {
+      changed = true;
+      for (const id of ["ag_ratio", "ag_repo"]) {
+        if (all.some((entry) => entry.id === `${id}_${suffix}`)) continue;
+        next.push({
+          ...byId.get(id)!,
+          id: `${id}_${suffix}`,
+          owner: agent.owner,
+          enabled: true,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      continue;
+    }
+    const starter = byId.get(base);
+    if (starter && base === "ag_jobs" && agent.hint !== starter.hint) {
+      changed = true;
+      next.push({ ...agent, task: starter.task, hint: starter.hint, lastRunAt: undefined });
+      continue;
+    }
+    next.push(agent);
+  }
+
+  if (changed) writeJson(agentsFile, next);
 }
 
 /** One agent, only if this visitor owns it. */
@@ -285,8 +385,21 @@ async function prices(): Promise<Map<string, { in: number; out: number }>> {
  * Composio wins over the built-in IMAP reader when both are present, so the demo runs on one
  * connector layer rather than two.
  */
+/**
+ * Tools the gateway runs itself. Code execution is always on. Web search and fetch are a workspace
+ * setting in Otari; once it is switched on there, PUP_OTARI_WEB=1 hands them to every agent.
+ */
+function gatewayTools(): unknown[] {
+  const tools: unknown[] = [{ type: "otari_code_execution" }];
+  if (process.env.PUP_OTARI_WEB === "1") tools.push({ type: "otari_web_search" }, { type: "otari_web_fetch" });
+  return tools;
+}
+
 async function watchTools(agent: AgentDef, asked = ""): Promise<unknown[]> {
-  const own = (agent.custom ?? []).map(customTool);
+  const own = [
+    ...(agent.custom ?? []).filter((connector) => connector.kind !== "mcp").map(customTool),
+    ...gatewayTools(),
+  ];
   const { composioConfigured, composioTools } = await import("./composio.ts");
   if (!composioConfigured()) return [...WATCH_TOOLS, ...own];
   try {
@@ -326,6 +439,75 @@ function customTool(connector: CustomConnector) {
   };
 }
 
+/** Request fields the gateway acts on: the agent's MCP servers, and who the end user is. */
+function gatewayExtras(agent: AgentDef): Record<string, unknown> {
+  const extra: Record<string, unknown> = {};
+  const servers = (agent.custom ?? [])
+    .filter((connector) => connector.kind === "mcp")
+    .map((connector) => ({
+      name: connector.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 40) || "mcp",
+      url: connector.url,
+      purpose_hint: connector.description,
+      ...(connector.header?.value
+        ? { authorization_token: connector.header.value.replace(/^Bearer\s+/i, "") }
+        : {}),
+    }));
+  if (servers.length) extra.mcp_servers = servers;
+  // Per-user budgets: with a service key, Otari tracks and caps spend per end user by this id.
+  if (process.env.PUP_END_USERS === "1" && agent.owner) extra.user = agent.owner;
+  return extra;
+}
+
+/** Say what a gateway refusal means for the owner, not what the status code was. */
+function friendlyError(code: string | null | undefined, raw: string): string {
+  if (code === "budget_exceeded")
+    return "This visitor's spending limit has been reached, so the run was stopped before it cost anything.";
+  if (code === "guardrail_violation") return "A guardrail blocked this request before it reached the model.";
+  if (code === "user_blocked") return "This visitor is blocked from running agents.";
+  return raw;
+}
+
+/** The sentinel: one short call to a different model, returning whether the report needs attention. */
+async function sentinel(
+  baseUrl: string,
+  apiKey: string,
+  authMode: "otari" | "bearer",
+  job: string,
+  report: string
+): Promise<{ alert: boolean; headline: string; promptTokens: number; completionTokens: number } | null> {
+  try {
+    const reply = await callModel({
+      baseUrl,
+      apiKey,
+      authMode,
+      model: sentinelModel(),
+      maxTokens: 80,
+      temperature: 0,
+      idleMs: 20_000,
+      messages: [
+        {
+          role: "system",
+          content:
+            'You triage reports from an always-on agent. Reply with JSON only: {"alert": true or false, "headline": "at most eight words"}. alert is true only when the report meets a condition the job said to flag, or says the job could not be done.',
+        },
+        { role: "user", content: `Job: ${job}\n\nReport: ${report.slice(0, 1500)}` },
+      ],
+    });
+    const parsed = JSON.parse(/\{[\s\S]*\}/.exec(reply.content)?.[0] ?? "") as {
+      alert?: unknown;
+      headline?: unknown;
+    };
+    return {
+      alert: parsed.alert === true,
+      headline: String(parsed.headline ?? "").slice(0, 80),
+      promptTokens: reply.promptTokens,
+      completionTokens: reply.completionTokens,
+    };
+  } catch {
+    return null; // the sentinel is a courtesy; a run never fails because of it
+  }
+}
+
 export async function runOnce(agent: AgentDef, message?: string, userId?: string): Promise<AgentRun> {
   const baseUrl = process.env.OTARI_BASE_URL ?? "https://otari.ai/api/v1";
   const apiKey = process.env.OTARI_API_KEY ?? "";
@@ -347,6 +529,8 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
     costUsd: null,
     ok: false,
   };
+
+  let sentinelTokens: { in: number; out: number } | null = null;
 
   try {
     if (agent.kind === "treasury") {
@@ -379,8 +563,9 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         policy: [
           "You are an always-on agent reporting to your owner.",
           "Use http_get to look at the page you were told to check, or any other page you need.",
+          "When the job needs arithmetic or comparing numbers, run code for it instead of working it out yourself.",
           "Reply with the finding only, in the shortest form that answers the job.",
-          "Never mention tools, requests, HTTP status, truncation, parsing, or what you would do next.",
+          "Never mention tools, code, requests, HTTP status, truncation, parsing, or what you would do next.",
           "Never apologise or explain your process. If something was unavailable, say what you could not get in one clause and stop.",
           "Two sentences maximum unless the job asks for a list.",
         ].join(" "),
@@ -412,7 +597,8 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         maxSteps: 7,
         tools: await watchTools(agent, asked),
         userId,
-        custom: agent.custom,
+        custom: agent.custom?.filter((connector) => connector.kind !== "mcp"),
+        extra: gatewayExtras(agent),
       });
 
       const fetched = result.events
@@ -424,13 +610,50 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
       run.promptTokens = result.promptTokens;
       run.completionTokens = result.completionTokens;
       run.ok = result.stoppedReason !== "error";
-      if (result.error) run.error = result.error;
+      if (result.error) run.error = friendlyError(result.errorCode, result.error);
+
+      // What the run leaned on, so the receipt can show the gateway's work instead of hiding it.
+      const gateway = result.gateway ?? [];
+      const used = new Set<string>();
+      if (fetched.length) used.add("fetch");
+      for (const event of result.events) {
+        if (event.kind !== "tool_call" || !event.tool || event.tool === "http_get") continue;
+        used.add(event.tool.startsWith("api_") ? "your API" : event.tool.split("_")[0].toLowerCase());
+      }
+      for (const call of gateway) {
+        if (call.type === "code_execution") used.add("code");
+        else if (call.type === "mcp") used.add(`mcp:${call.server ?? "server"}`);
+        else if (call.type.includes("search")) used.add("web search");
+        else if (call.type.includes("fetch")) used.add("web fetch");
+      }
+      if (used.size) run.used = [...used];
+      const code = gateway
+        .filter((call) => call.type === "code_execution" && call.code)
+        .map((call) => ({ source: String(call.code).slice(0, 1500), output: String(call.stdout ?? "").slice(0, 500) }));
+      if (code.length) run.code = code.slice(0, 3);
+      if (result.servedBy) run.servedBy = { provider: result.servedBy.provider, fallback: result.servedBy.fallback };
+
+      // A second, smaller model in a different role: it does none of the work, it only reads the
+      // report and decides whether the owner needs to look. Scheduled runs only.
+      if (run.ok && !asked && result.finalText) {
+        const verdict = await sentinel(baseUrl, apiKey, authMode, agent.task, result.finalText);
+        if (verdict) {
+          run.alert = verdict.alert;
+          run.headline = verdict.headline;
+          run.sentinelModel = sentinelModel();
+          sentinelTokens = { in: verdict.promptTokens, out: verdict.completionTokens };
+        }
+      }
     }
 
     const table = await prices();
     const price = table.get(agent.model);
     if (price) {
       run.costUsd = (run.promptTokens * price.in + run.completionTokens * price.out) / 1e6;
+      const watcher = table.get(sentinelModel());
+      if (watcher && sentinelTokens) {
+        run.costUsd += (sentinelTokens.in * watcher.in + sentinelTokens.out * watcher.out) / 1e6;
+      }
     }
   } catch (cause) {
     run.error = String(cause).slice(0, 300);
