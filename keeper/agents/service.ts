@@ -457,12 +457,16 @@ export function startScheduler(onRun?: (run: AgentRun) => void) {
     ticking = true;
     try {
       const now = Date.now();
-      for (const agent of listAgents()) {
-        if (!ownerIsActive(agent, now) || !isDue(agent)) continue;
-        // Scheduled runs act as the owner, so their connected apps work without them present.
-        const run = await runOnce(agent, undefined, agent.owner);
-        onRun?.(run);
-      }
+      const due = listAgents().filter((agent) => ownerIsActive(agent, now) && isDue(agent));
+      // A few at a time: one slow agent must not hold up every other visitor's first run.
+      const worker = async () => {
+        for (let agent = due.shift(); agent; agent = due.shift()) {
+          // Scheduled runs act as the owner, so their connected apps work without them present.
+          const run = await runOnce(agent, undefined, agent.owner);
+          onRun?.(run);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, due.length) }, worker));
     } finally {
       ticking = false;
     }
