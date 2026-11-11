@@ -2,7 +2,7 @@
 import "../wick.css";
 
 /**
- * Wick â€” always-on agents, each with its own thread.
+ * Wick — always-on agents, each with its own thread.
  *
  * Left: the agents on duty. Right: the conversation with the selected one, where scheduled runs
  * and anything you type both land as messages.
@@ -66,7 +66,7 @@ const TINTS = ["#7FE3C4", "#FFB43A", "#9CC7FF", "#F2A7C3", "#C3B6FF"];
 const tint = (id: string) => TINTS[[...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % TINTS.length];
 
 const money = (value: number | null | undefined) =>
-  value == null ? "â€”" : `$${value.toFixed(value < 0.01 ? 6 : 4)}`;
+  value == null ? "—" : `$${value.toFixed(value < 0.01 ? 6 : 4)}`;
 
 const every = (minutes: number) =>
   minutes < 60 ? `${minutes}m` : minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
@@ -203,7 +203,7 @@ export default function Wick() {
             <span className="wk-brand__name">Wick</span>
           </a>
           <span className="wk-meta wk-hdr__meta">
-            {agents.length} agents on duty Â· {money(spend)} metered Â· 149 models
+            {agents.length} agents on duty · {money(spend)} metered · 149 models
           </span>
           <button className="wk-btn wk-btn--ghost wk-btn--sm" onClick={() => setComposing(true)}>
             New agent
@@ -317,8 +317,8 @@ export default function Wick() {
                   <div>
                     <div className="wk-pane__name">{active.name}</div>
                     <div className="wk-meta">
-                      {active.enabled ? `every ${every(active.everyMinutes)}` : "paused"} Â·{" "}
-                      {shortModel(active.model)} Â· next in{" "}
+                      {active.enabled ? `every ${every(active.everyMinutes)}` : "paused"} ·{" "}
+                      {shortModel(active.model)} · next in{" "}
                       {Math.max(0, Math.round((Date.parse(active.nextRunAt) - Date.now()) / 60000))}m
                     </div>
                   </div>
@@ -380,8 +380,8 @@ export default function Wick() {
                         <div className="wk-bubble">{run.ok ? spoken(run.output) : `Failed: ${run.error}`}</div>
                       </div>
                       <div className="wk-stamp">
-                        {clock(run.startedAt)} Â· {shortModel(run.model)} Â· {(run.ms / 1000).toFixed(1)}s Â·{" "}
-                        {money(run.costUsd)} Â· {run.trigger === "person" ? "you asked" : "on schedule"}
+                        {clock(run.startedAt)} · {shortModel(run.model)} · {(run.ms / 1000).toFixed(1)}s ·{" "}
+                        {money(run.costUsd)} · {run.trigger === "person" ? "you asked" : "on schedule"}
                       </div>
                     </div>
                   );
@@ -439,11 +439,11 @@ export default function Wick() {
                   value={newAgent.model}
                   onChange={(event) => setNewAgent({ ...newAgent, model: event.target.value })}
                 >
-                  <option value="">pick a modelâ€¦</option>
+                  <option value="">pick a model…</option>
                   {models.map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.id}
-                      {model.inPrice != null ? ` â€” $${model.inPrice}/$${model.outPrice} per M` : ""}
+                      {model.inPrice != null ? ` — $${model.inPrice}/$${model.outPrice} per M` : ""}
                     </option>
                   ))}
                 </select>
