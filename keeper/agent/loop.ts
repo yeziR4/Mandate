@@ -51,6 +51,8 @@ export interface RunOptions {
   maxTokens?: number;
   /** Override the tool surface. Treasury uses the money tools; watch agents use http_get. */
   tools?: unknown[];
+  /** Whose connected accounts the tools should act on. */
+  userId?: string;
   /** Called as events happen, so a UI can stream them. */
   onEvent?: (event: AgentEvent) => void;
 }
@@ -146,7 +148,7 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
       }
       push({ step, kind: "tool_call", tool: call.name, args, at: Date.now() });
 
-      const result = await executeTool(options.scenario, ledger, call.name, args);
+      const result = await executeTool(options.scenario, ledger, call.name, args, { userId: options.userId });
       push({
         step,
         kind: "tool_result",

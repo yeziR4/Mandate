@@ -10,6 +10,16 @@ import "../wick.css";
 
 const KEEPER_URL = (import.meta.env.VITE_KEEPER_URL as string | undefined)?.replace(/\/$/, "");
 
+/** One identity per browser, so a visitor connects their own accounts, not the demo owner's. */
+const VISITOR = (() => {
+  const key = "wick-user";
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  const created = "wick_" + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem(key, created);
+  return created;
+})();
+
 interface GatewayModel {
   id: string;
   inPrice: number | null;
@@ -91,9 +101,9 @@ export default function Wick() {
     }
     try {
       const [agentsResponse, modelsResponse, connectorsResponse] = await Promise.all([
-        fetch(`${KEEPER_URL}/agents`),
+        fetch(`${KEEPER_URL}/agents`, { headers: { "x-wick-user": VISITOR } }),
         fetch(`${KEEPER_URL}/agents/models`),
-        fetch(`${KEEPER_URL}/agents/connectors`),
+        fetch(`${KEEPER_URL}/agents/connectors`, { headers: { "x-wick-user": VISITOR } }),
       ]);
       if (agentsResponse.ok) {
         const list = ((await agentsResponse.json()) as { agents: Agent[] }).agents;
@@ -138,12 +148,29 @@ export default function Wick() {
     try {
       await fetch(`${KEEPER_URL}${path}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", "x-wick-user": VISITOR },
         body: JSON.stringify(payload),
       });
       await load();
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Ask the keeper for a Composio OAuth link for THIS visitor and open it. */
+  const connect = async (toolkit: string) => {
+    if (!KEEPER_URL) return;
+    try {
+      const response = await fetch(`${KEEPER_URL}/agents/connectors/link`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-wick-user": VISITOR },
+        body: JSON.stringify({ toolkit }),
+      });
+      if (!response.ok) return;
+      const { url } = (await response.json()) as { url?: string };
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      /* ignore */
     }
   };
 
@@ -229,6 +256,11 @@ export default function Wick() {
               {connectors.map((connector) => (
                 <div className="wk-connector" key={connector.id}>
                   <span>{connector.label}</span>
+                  {connector.state !== "live" && connector.state !== "soon" ? (
+                    <button className="wk-connector__connect" onClick={() => void connect(connector.id)}>
+                      connect
+                    </button>
+                  ) : null}
                   <span
                     className={`wk-connector__state${
                       connector.state === "live"

@@ -31,9 +31,16 @@ import type { Severity } from "../mandate/referee.ts";
 
 const MAX_BODY = 64 * 1024;
 
+/** Each visitor gets their own Composio identity, so connectors are theirs, not ours. */
+const visitor = (req: IncomingMessage): string => {
+  const header = req.headers["x-wick-user"];
+  const value = Array.isArray(header) ? header[0] : header;
+  return (value ?? "").trim() || "wick-demo";
+};
+
 const cors = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "content-type,authorization",
+  "access-control-allow-headers": "content-type,authorization,x-wick-user",
   "access-control-allow-methods": "GET,POST,OPTIONS",
 };
 
@@ -170,7 +177,7 @@ export function createKeeper() {
           send(res, 404, { error: "no such agent" });
           return;
         }
-        const run = await runOnce(agent, body.message ? String(body.message) : undefined);
+        const run = await runOnce(agent, body.message ? String(body.message) : undefined, visitor(req));
         send(res, 200, { run });
         return;
       }
@@ -216,7 +223,7 @@ export function createKeeper() {
       if (req.method === "GET" && url.pathname === "/agents/connectors") {
         const { composioConfigured, composioConnectors } = await import("./agents/composio.ts");
         if (composioConfigured()) {
-          send(res, 200, { connectors: await composioConnectors() });
+          send(res, 200, { connectors: await composioConnectors(visitor(req)) });
           return;
         }
         const { gmailConfigured } = await import("./agents/gmail.ts");
@@ -239,7 +246,7 @@ export function createKeeper() {
         const body = (await readBody(req)) as { toolkit?: string };
         const { composioConnectLink } = await import("./agents/composio.ts");
         const origin = req.headers.origin ?? "http://localhost:4321";
-        const url = await composioConnectLink(String(body.toolkit ?? "gmail"), origin);
+        const url = await composioConnectLink(String(body.toolkit ?? "gmail"), origin, visitor(req));
         if (!url) {
           send(res, 400, { error: "could not create a connect link" });
           return;

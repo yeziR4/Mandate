@@ -19,6 +19,7 @@ export interface SessionOptions {
   model: string;
   maxTokens?: number;
   maxStepsPerMessage?: number;
+  userId?: string;
   onEvent?: (event: AgentEvent) => void;
 }
 
@@ -98,7 +99,7 @@ export class AgentSession {
           args = {};
         }
         push({ step, kind: "tool_call", tool: call.name, args, at: Date.now() });
-        const result = await executeTool(this.options.scenario, this.ledger, call.name, args);
+        const result = await executeTool(this.options.scenario, this.ledger, call.name, args, { userId: this.options.userId });
         push({ step, kind: "tool_result", tool: call.name, observation: result.observation, at: Date.now() });
         this.messages.push({ role: "tool", tool_call_id: call.id, content: result.observation });
       }

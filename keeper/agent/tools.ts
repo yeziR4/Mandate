@@ -130,11 +130,17 @@ export interface ToolResult {
   data?: unknown;
 }
 
+export interface ToolContext {
+  /** The visitor whose connected accounts should be used. */
+  userId?: string;
+}
+
 export async function executeTool(
   scenario: Scenario,
   ledger: Ledger,
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  context: ToolContext = {}
 ): Promise<ToolResult> {
   switch (name) {
     case "gmail_list": {
@@ -250,7 +256,7 @@ export async function executeTool(
       if (/^[A-Z0-9_]{3,}$/.test(name)) {
         const { composioConfigured, composioExecute } = await import("../agents/composio.ts");
         if (composioConfigured()) {
-          const result = await composioExecute(name, args);
+          const result = await composioExecute(name, args, context.userId);
           ledger.reads.push({ tool: name, value: result.ok ? (result.data ?? true) : false });
           return result;
         }

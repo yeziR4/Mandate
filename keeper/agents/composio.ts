@@ -1,5 +1,5 @@
-/**
- * Composio — the connector layer.
+﻿/**
+ * Composio â€” the connector layer.
  *
  * Instead of hand-writing a connector per app, we pull the tool schemas Composio already publishes
  * for a toolkit and hand them to the model as ordinary tools. Execution goes back through
@@ -18,7 +18,11 @@ export function composioConfigured(): boolean {
   return Boolean(env("COMPOSIO_API_KEY"));
 }
 
-const userId = () => env("COMPOSIO_USER_ID") || "wick-demo";
+/**
+ * Each visitor gets their own Composio user id, so judges connect their own accounts instead of
+ * borrowing the demo owner's. Falls back to the configured id when a caller does not send one.
+ */
+const fallbackUser = () => env("COMPOSIO_USER_ID") || "wick-demo";
 
 function headers(): Record<string, string> {
   return {
@@ -94,13 +98,14 @@ export interface ComposioResult {
 /** Run a tool on the user's connected account. */
 export async function composioExecute(
   slug: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  user = fallbackUser()
 ): Promise<ComposioResult> {
   try {
     const response = await fetch(`${BASE}/tools/execute/${slug}`, {
       method: "POST",
       headers: headers(),
-      body: JSON.stringify({ user_id: userId(), arguments: args, version: "latest" }),
+      body: JSON.stringify({ user_id: user, arguments: args, version: "latest" }),
     });
     const text = await response.text();
 
@@ -128,7 +133,7 @@ export interface ConnectorState {
 }
 
 /** Which toolkits the user has actually connected. */
-export async function composioConnectors(): Promise<ConnectorState[]> {
+export async function composioConnectors(user = fallbackUser()): Promise<ConnectorState[]> {
   const out: ConnectorState[] = [
     { id: "web", label: "Web fetch", state: "live" },
   ];
@@ -146,7 +151,7 @@ export async function composioConnectors(): Promise<ConnectorState[]> {
   let connected = new Set<string>();
   try {
     const response = await fetch(
-      `${BASE}/connected_accounts?user_ids=${encodeURIComponent(userId())}&limit=100`,
+      `${BASE}/connected_accounts?user_ids=${encodeURIComponent(user)}&limit=100`,
       { headers: headers() }
     );
     if (response.ok) {
@@ -173,14 +178,18 @@ export async function composioConnectors(): Promise<ConnectorState[]> {
 }
 
 /** A link the user can open to authorise a toolkit. */
-export async function composioConnectLink(toolkit: string, callbackUrl: string): Promise<string | null> {
+export async function composioConnectLink(
+  toolkit: string,
+  callbackUrl: string,
+  user = fallbackUser()
+): Promise<string | null> {
   if (!composioConfigured()) return null;
   try {
     const response = await fetch(`${BASE}/connected_accounts/link`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({
-        user_id: userId(),
+        user_id: user,
         toolkit_slug: toolkit,
         callback_url: callbackUrl,
       }),
@@ -192,3 +201,4 @@ export async function composioConnectLink(toolkit: string, callbackUrl: string):
     return null;
   }
 }
+

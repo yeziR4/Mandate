@@ -148,7 +148,7 @@ async function watchTools(): Promise<unknown[]> {
   }
 }
 
-export async function runOnce(agent: AgentDef, message?: string): Promise<AgentRun> {
+export async function runOnce(agent: AgentDef, message?: string, userId?: string): Promise<AgentRun> {
   const baseUrl = process.env.OTARI_BASE_URL ?? "https://otari.ai/api/v1";
   const apiKey = process.env.OTARI_API_KEY ?? "";
   const authMode = baseUrl.includes("otari") ? ("otari" as const) : ("bearer" as const);
@@ -180,6 +180,7 @@ export async function runOnce(agent: AgentDef, message?: string): Promise<AgentR
         scenario,
         model: agent.model,
         request: agent.task,
+        userId,
         maxSteps: 5,
       });
       run.output =
@@ -218,6 +219,7 @@ export async function runOnce(agent: AgentDef, message?: string): Promise<AgentR
         request: `${asked ? `${asked}\n\nRemember: ` : ""}${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
         maxSteps: 7,
         tools: await watchTools(),
+        userId,
       });
 
       const fetched = result.events

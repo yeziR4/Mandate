@@ -1097,3 +1097,20 @@
 .wk-connector__state--key {
   color: var(--wk-amber);
 }
+
+.wk-connector__connect {
+  font-family: var(--wk-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(255, 180, 58, 0.5);
+  color: var(--wk-amber);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.wk-connector__connect:hover {
+  background: var(--wk-amber);
+  color: #201400;
+}
