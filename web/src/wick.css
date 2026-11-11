@@ -1114,3 +1114,51 @@
   background: var(--wk-amber);
   color: #201400;
 }
+
+/* connector catalogue */
+
+.wk-connector__search {
+  border-radius: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+
+.wk-connector__list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.wk-connector {
+  padding: 7px 0;
+}
+
+.wk-connector__id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wk-connector__id img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: rgba(238, 229, 228, 0.08);
+  flex: none;
+}
+
+.wk-connector__glyph {
+  width: 18px;
+  height: 18px;
+  border: 1px dashed var(--wk-line);
+  flex: none;
+}
+
+.wk-sheet h4 .wk-meta {
+  margin-left: 6px;
+  font-weight: 400;
+}

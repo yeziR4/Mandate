@@ -41,7 +41,14 @@ interface AgentRun {
   error?: string;
 }
 
-interface Connector { id: string; label: string; state: string; }
+interface Connector {
+  id: string;
+  label: string;
+  state: "live" | "needs-auth" | "needs-app";
+  logo?: string;
+  managed?: boolean;
+  tools?: number;
+}
 
 interface Agent {
   id: string;
@@ -85,6 +92,7 @@ export default function Wick() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [models, setModels] = useState<GatewayModel[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
+  const [connectorQuery, setConnectorQuery] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
@@ -251,29 +259,49 @@ export default function Wick() {
 
           {showConnectors && (
             <div className="wk-sheet">
-              <h4>Connectors</h4>
-              <p>Tools an agent can call while it runs.</p>
-              {connectors.map((connector) => (
-                <div className="wk-connector" key={connector.id}>
-                  <span>{connector.label}</span>
-                  {connector.state !== "live" && connector.state !== "soon" ? (
-                    <button className="wk-connector__connect" onClick={() => void connect(connector.id)}>
-                      connect
-                    </button>
-                  ) : null}
-                  <span
-                    className={`wk-connector__state${
-                      connector.state === "live"
-                        ? " wk-connector__state--live"
-                        : connector.state === "needs-key"
-                          ? " wk-connector__state--key"
-                          : ""
-                    }`}
-                  >
-                    {connector.state === "needs-key" ? "add key" : connector.state}
-                  </span>
-                </div>
-              ))}
+              <h4>
+                Connectors <span className="wk-meta">{connectors.length}</span>
+              </h4>
+              <p>Every toolkit Composio offers. Connect the ones your agents should be able to use.</p>
+              <input
+                className="wk-input wk-connector__search"
+                placeholder="Search apps…"
+                value={connectorQuery}
+                onChange={(event) => setConnectorQuery(event.target.value)}
+              />
+              <div className="wk-connector__list">
+                {connectors
+                  .filter((connector) =>
+                    connector.label.toLowerCase().includes(connectorQuery.toLowerCase())
+                  )
+                  .slice(0, 60)
+                  .map((connector) => (
+                    <div className="wk-connector" key={connector.id}>
+                      <span className="wk-connector__id">
+                        {connector.logo ? (
+                          <img src={connector.logo} alt="" loading="lazy" />
+                        ) : (
+                          <span className="wk-connector__glyph" />
+                        )}
+                        {connector.label}
+                      </span>
+                      {connector.state === "live" ? (
+                        <span className="wk-connector__state wk-connector__state--live">live</span>
+                      ) : connector.state === "needs-auth" ? (
+                        <button
+                          className="wk-connector__connect"
+                          onClick={() => void connect(connector.id)}
+                        >
+                          connect
+                        </button>
+                      ) : (
+                        <span className="wk-connector__state" title="Needs your own developer app on Composio">
+                          needs app
+                        </span>
+                      )}
+                    </div>
+                  ))}
+              </div>
             </div>
           )}
         </aside>

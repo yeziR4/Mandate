@@ -129,52 +129,122 @@ export async function composioExecute(
 export interface ConnectorState {
   id: string;
   label: string;
-  state: "live" | "needs-auth" | "soon";
+  state: "live" | "needs-auth" | "needs-app";
+  logo?: string;
+  /** True when Composio can run the OAuth for us, i.e. no developer app needed. */
+  managed?: boolean;
+  tools?: number;
 }
 
-/** Which toolkits the user has actually connected. */
-export async function composioConnectors(user = fallbackUser()): Promise<ConnectorState[]> {
-  const out: ConnectorState[] = [
-    { id: "web", label: "Web fetch", state: "live" },
-  ];
+interface Toolkit {
+  slug: string;
+  name: string;
+  logo?: string;
+  managed: boolean;
+  tools: number;
+}
 
-  if (!composioConfigured()) {
-    return [
-      ...out,
-      { id: "gmail", label: "Gmail", state: "needs-auth" },
-      { id: "twitter", label: "X / Twitter", state: "needs-auth" },
-      { id: "slack", label: "Slack", state: "soon" },
-      { id: "calendar", label: "Calendar", state: "soon" },
-    ];
+let toolkitCache: { at: number; list: Toolkit[] } | null = null;
+
+/** The whole Composio catalogue, paged. Cached for ten minutes; it is a lot of rows. */
+async function listToolkits(): Promise<Toolkit[]> {
+  if (toolkitCache && Date.now() - toolkitCache.at < 10 * 60_000) return toolkitCache.list;
+
+  const list: Toolkit[] = [];
+  let cursor: string | null = null;
+
+  for (let page = 0; page < 12; page++) {
+    const url = `${BASE}/toolkits?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    try {
+      const response = await fetch(url, { headers: headers() });
+      if (!response.ok) break;
+      const body = (await response.json()) as {
+        items?: Array<{
+          slug?: string;
+          name?: string;
+          meta?: { logo?: string; tools_count?: number };
+          composio_managed_auth_schemes?: string[];
+        }>;
+        next_cursor?: string | null;
+      };
+      for (const item of body.items ?? []) {
+        if (!item.slug) continue;
+        list.push({
+          slug: item.slug,
+          name: item.name ?? item.slug,
+          logo: item.meta?.logo,
+          managed: (item.composio_managed_auth_schemes ?? []).length > 0,
+          tools: item.meta?.tools_count ?? 0,
+        });
+      }
+      cursor = body.next_cursor ?? null;
+      if (!cursor) break;
+    } catch {
+      break;
+    }
   }
 
-  let connected = new Set<string>();
+  toolkitCache = { at: Date.now(), list };
+  return list;
+}
+
+/** Which toolkits this visitor has actually connected. */
+async function connectedToolkits(user: string): Promise<Set<string>> {
+  const connected = new Set<string>();
   try {
     const response = await fetch(
-      `${BASE}/connected_accounts?user_ids=${encodeURIComponent(user)}&limit=100`,
+      `${BASE}/connected_accounts?user_ids=${encodeURIComponent(user)}&limit=200`,
       { headers: headers() }
     );
     if (response.ok) {
       const body = (await response.json()) as {
         items?: Array<{ toolkit?: { slug?: string }; status?: string }>;
       };
-      connected = new Set(
-        (body.items ?? [])
-          .filter((item) => (item.status ?? "").toUpperCase() === "ACTIVE")
-          .map((item) => (item.toolkit?.slug ?? "").toLowerCase())
-      );
+      for (const item of body.items ?? []) {
+        if ((item.status ?? "").toUpperCase() !== "ACTIVE") continue;
+        connected.add((item.toolkit?.slug ?? "").toLowerCase());
+      }
     }
   } catch {
-    /* leave everything as needs-auth */
+    /* nothing connected */
+  }
+  return connected;
+}
+
+/**
+ * The full catalogue, ordered so the useful rows are first: connected, then connectable with
+ * Composio-managed OAuth, then everything else.
+ */
+export async function composioConnectors(user = fallbackUser()): Promise<ConnectorState[]> {
+  if (!composioConfigured()) {
+    return [
+      { id: "web", label: "Web fetch", state: "live", managed: true },
+      { id: "gmail", label: "Gmail", state: "needs-auth", managed: true },
+      { id: "twitter", label: "X / Twitter", state: "needs-app", managed: false },
+    ];
   }
 
-  return [
-    ...out,
-    { id: "gmail", label: "Gmail", state: connected.has("gmail") ? "live" : "needs-auth" },
-    { id: "twitter", label: "X / Twitter", state: connected.has("twitter") ? "live" : "needs-auth" },
-    { id: "slack", label: "Slack", state: connected.has("slack") ? "live" : "soon" },
-    { id: "calendar", label: "Calendar", state: "soon" },
-  ];
+  const [toolkits, connected] = await Promise.all([listToolkits(), connectedToolkits(user)]);
+
+  const rows: ConnectorState[] = toolkits.map((toolkit) => ({
+    id: toolkit.slug,
+    label: toolkit.name,
+    logo: toolkit.logo,
+    managed: toolkit.managed,
+    tools: toolkit.tools,
+    state: connected.has(toolkit.slug)
+      ? "live"
+      : toolkit.managed
+        ? "needs-auth"
+        : "needs-app",
+  }));
+
+  const rank = (row: ConnectorState) =>
+    row.state === "live" ? 0 : row.state === "needs-auth" ? 1 : 2;
+
+  rows.sort((a, b) => rank(a) - rank(b) || (b.tools ?? 0) - (a.tools ?? 0));
+
+  return [{ id: "web", label: "Web fetch", state: "live", managed: true }, ...rows];
 }
 
 /** Find (and cache) the auth config for a toolkit. Composio-managed OAuth needs no client secret. */
