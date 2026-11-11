@@ -11,7 +11,8 @@
     "test:mandate": "cd mandate && forge test",
     "e2e:mandate": "node --experimental-strip-types mandate/scripts/e2e.mjs",
     "keeper": "node keeper/server.ts",
-    "deploy:web": "node keeper/scripts/deploy-web.mjs"
+    "deploy:web": "node keeper/scripts/deploy-web.mjs",
+    "verify:mandate": "node mandate/scripts/verify.mjs"
   },
   "engines": {
     "node": "22.x"
