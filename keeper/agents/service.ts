@@ -72,6 +72,54 @@ function writeJson(file: string, value: unknown) {
 export const listAgents = (): AgentDef[] => readJson<AgentDef[]>(agentsFile, []);
 export const listRuns = (): AgentRun[] => readJson<AgentRun[]>(runsFile, []);
 
+/**
+ * A fresh container has no data volume contents, so the first boot would show an empty product.
+ * Seed the demo agents once; anything the user creates afterwards is theirs.
+ */
+export function seedAgents(): void {
+  if (listAgents().length > 0) return;
+  const now = new Date().toISOString();
+
+  const seed: AgentDef[] = [
+    {
+      id: "ag_watch",
+      name: "ETH price watch",
+      task: "Check the ETH price in USD and flag it if it drops below $2,000.",
+      hint: "Use http_get once with https://api.coinbase.com/v2/prices/ETH-USD/spot . Reply with one sentence: the price, and whether it is below 2000.",
+      model: "deepseek/deepseek-v4.1-flash",
+      everyMinutes: 30,
+      enabled: true,
+      kind: "watch",
+      createdAt: now,
+    },
+    {
+      id: "ag_jobs",
+      name: "Hiring scout",
+      task: "List the three most recent hiring posts on Hacker News.",
+      hint: "Use http_get once with https://hn.algolia.com/api/v1/search?tags=story&query=hiring&hitsPerPage=3&attributesToRetrieve=title,points . Reply with three lines, one per post: title, then points in brackets. No other text.",
+      model: "z-ai/glm-5.3-flash",
+      everyMinutes: 60,
+      enabled: true,
+      kind: "watch",
+      createdAt: now,
+    },
+    {
+      id: "ag_inbox",
+      name: "Inbox digest",
+      task: "Summarise the unread mail in my inbox in three lines or fewer.",
+      hint: "Read the six most recent unread messages using whichever Gmail read tool is available (prefer the GMAIL_ tool over any local one). Reply with one line per message: sender, then what it wants. If there is nothing unread, say so in one line.",
+      model: "alibaba/qwen3.8-flash",
+      everyMinutes: 60,
+      enabled: true,
+      kind: "watch",
+      createdAt: now,
+    },
+  ];
+
+  writeJson(agentsFile, seed);
+  writeJson(runsFile, []);
+}
+
 export function saveAgent(agent: AgentDef) {
   const agents = listAgents();
   const index = agents.findIndex((entry) => entry.id === agent.id);

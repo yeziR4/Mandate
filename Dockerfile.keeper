@@ -16,6 +16,8 @@ COPY package.json ./
 COPY keeper ./keeper
 COPY lib/loadEnv.ts ./lib/loadEnv.ts
 COPY mandate/referee.ts mandate/policy.txt mandate/models.json ./mandate/
+# the agent runtime reads these at boot; without them the keeper exits on import
+COPY mandate/scenarios ./mandate/scenarios
 
 # transcripts live here; mount a volume so a restart does not lose the record
 RUN mkdir -p /app/data && chown -R node:node /app/data

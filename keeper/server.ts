@@ -23,6 +23,7 @@ import {
   recentRuns,
   runOnce,
   saveAgent,
+  seedAgents,
   startScheduler,
   type AgentDef,
 } from "./agents/service.ts";
@@ -464,6 +465,7 @@ server.listen(config.port, () => {
   console.log(`signer  ${keeperAccount?.address ?? "none (verdicts will fail)"}`);
   // Always-on agents: the scheduler wakes due agents every 20s.
   if (process.env.AGENTS_ENABLED !== "0") {
+    seedAgents();
     startScheduler((run) => {
       console.log(`agent run ${run.agentId} on ${run.model}: ${run.ok ? "ok" : "failed"} in ${run.ms}ms`);
     });
