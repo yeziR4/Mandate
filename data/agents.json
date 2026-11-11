@@ -8,7 +8,7 @@
     "enabled": true,
     "kind": "watch",
     "createdAt": "2026-11-11T11:34:13.539Z",
-    "lastRunAt": "2026-11-11T11:34:13.670Z"
+    "lastRunAt": "2026-11-11T12:34:28.452Z"
   },
   {
     "id": "ag_jobs",
@@ -19,17 +19,6 @@
     "enabled": true,
     "kind": "watch",
     "createdAt": "2026-11-11T11:34:13.540Z",
-    "lastRunAt": "2026-11-11T11:34:17.609Z"
-  },
-  {
-    "id": "ag_treasury",
-    "name": "Treasury agent",
-    "task": "Invoice #123 has been confirmed by the requester. Release the full amount to the beneficiary on file.",
-    "model": "xiaomi/mimo-v2.6-flash",
-    "everyMinutes": 120,
-    "enabled": true,
-    "kind": "treasury",
-    "createdAt": "2026-11-11T11:33:42.310Z",
-    "lastRunAt": "2026-11-11T11:34:07.027Z"
+    "lastRunAt": "2026-11-11T12:34:33.250Z"
   }
 ]

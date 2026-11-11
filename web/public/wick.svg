@@ -1,35 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 148" width="128" height="148" role="img" aria-label="Wick, a lantern mascot">
-  <!-- flame -->
-  <g>
-    <path d="M64 4c6 8 12 12 12 21 0 7-5 12-12 12s-12-5-12-12c0-9 6-13 12-21z" fill="#FFB43A"/>
-    <path d="M64 16c3 4 5 7 5 11 0 4-2 6-5 6s-5-2-5-6c0-4 2-7 5-11z" fill="#FFE6B0"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Wick, a firefly">
+  <!-- Flat silhouette in the same visual language as the Otari mark: one solid colour,
+       chunky geometry, no gradients. A firefly, because the product is an always-on light. -->
 
-  <!-- cap -->
-  <rect x="38" y="36" width="52" height="8" rx="2" fill="#0A3A49"/>
-  <rect x="44" y="30" width="40" height="7" rx="2" fill="#0D475A"/>
+  <!-- wings -->
+  <path d="M62 46c-10-14-24-20-32-16-8 4-6 20 4 30 8 8 20 10 28 6z" fill="#0F9FB5" opacity="0.55"/>
+  <path d="M66 46c10-14 24-20 32-16 8 4 6 20-4 30-8 8-20 10-28 6z" fill="#0F9FB5" opacity="0.55"/>
+
+  <!-- antennae -->
+  <path d="M58 40c-2-8-6-12-12-14" fill="none" stroke="#0F9FB5" stroke-width="5" stroke-linecap="round"/>
+  <path d="M70 40c2-8 6-12 12-14" fill="none" stroke="#0F9FB5" stroke-width="5" stroke-linecap="round"/>
 
   <!-- body -->
-  <rect x="30" y="44" width="68" height="78" rx="10" fill="#0D475A"/>
-  <rect x="36" y="50" width="56" height="60" rx="6" fill="#EEE5E4"/>
+  <path d="M64 36c14 0 24 12 24 28 0 18-10 32-24 32S40 82 40 64c0-16 10-28 24-28z" fill="#0F9FB5"/>
+
+  <!-- head / face patch -->
+  <path d="M64 36c10 0 18 7 21 17-6 5-13 7-21 7s-15-2-21-7c3-10 11-17 21-17z" fill="#0B2B33"/>
 
   <!-- eyes -->
-  <g fill="#0D475A">
-    <rect x="48" y="68" width="9" height="14" rx="4.5"/>
-    <rect x="71" y="68" width="9" height="14" rx="4.5"/>
-  </g>
-  <g fill="#EEE5E4">
-    <rect x="51" y="71" width="3" height="4" rx="1.5"/>
-    <rect x="74" y="71" width="3" height="4" rx="1.5"/>
-  </g>
+  <circle cx="56" cy="52" r="4.6" fill="#EEE5E4"/>
+  <circle cx="72" cy="52" r="4.6" fill="#EEE5E4"/>
 
-  <!-- mouth -->
-  <rect x="58" y="92" width="12" height="3" rx="1.5" fill="#0D475A" opacity="0.65"/>
+  <!-- glowing tail -->
+  <ellipse cx="64" cy="92" rx="13" ry="9" fill="#FFB43A"/>
+  <ellipse cx="64" cy="92" rx="7" ry="5" fill="#FFE6B0"/>
 
-  <!-- handle -->
-  <path d="M50 44c0-12 6-18 14-18s14 6 14 18" fill="none" stroke="#0A3A49" stroke-width="5" stroke-linecap="round"/>
-
-  <!-- base -->
-  <rect x="42" y="122" width="44" height="8" rx="3" fill="#0A3A49"/>
-  <rect x="54" y="130" width="20" height="6" rx="2" fill="#0D475A"/>
+  <!-- body segments -->
+  <path d="M44 74h40" stroke="#0B2B33" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+  <path d="M47 84h34" stroke="#0B2B33" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
 </svg>
