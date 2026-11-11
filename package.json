@@ -10,7 +10,8 @@
     "preflight": "node mandate/scripts/preflight.mjs",
     "test:mandate": "cd mandate && forge test",
     "e2e:mandate": "node --experimental-strip-types mandate/scripts/e2e.mjs",
-    "keeper": "node keeper/server.ts"
+    "keeper": "node keeper/server.ts",
+    "deploy:web": "node keeper/scripts/deploy-web.mjs"
   },
   "engines": {
     "node": "22.x"
