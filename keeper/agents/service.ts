@@ -20,8 +20,24 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
 const dataDir = path.resolve(root, "data");
 
+/** An HTTPS API the owner attached themselves. The agent gets one tool per connector. */
+export interface CustomConnector {
+  name: string;
+  /** Base URL. Calls are confined to this origin and path prefix. */
+  url: string;
+  /** What it is for, in the owner's words. This is what the model reads. */
+  description: string;
+  /** Optional auth header. Stored on the keeper, never sent back to a browser. */
+  header?: { name: string; value: string };
+}
+
 export interface AgentDef {
   id: string;
+  /** The visitor this agent belongs to. Agents without one are the templates new visitors get. */
+  owner?: string;
+  /** Composio toolkits this agent may use. Undefined on old records: every curated toolkit. */
+  connectors?: string[];
+  custom?: CustomConnector[];
   name: string;
   /** What the person sees on the card. Plain language. */
   task: string;
@@ -55,6 +71,28 @@ export interface AgentRun {
 
 const agentsFile = path.join(dataDir, "agents.json");
 const runsFile = path.join(dataDir, "runs.json");
+const visitorsFile = path.join(dataDir, "visitors.json");
+
+/** The agents every new visitor starts with, and the apps each one needs. */
+const TEMPLATE_CONNECTORS: Record<string, string[]> = {
+  ag_watch: [],
+  ag_jobs: [],
+  ag_inbox: ["gmail"],
+};
+
+/** Limits that keep one browser from running up the shared gateway bill. */
+export const MAX_AGENTS_PER_VISITOR = 8;
+export const MIN_EVERY_MINUTES = 5;
+
+/**
+ * A visitor's agents keep waking for this long after the visitor was last seen, then rest until
+ * they come back. 0 means never rest. Every run is paid for by the deployment, not the visitor,
+ * so a public demo should not keep working for browsers that left days ago.
+ */
+const activeHours = () => {
+  const value = Number(process.env.PUP_ACTIVE_HOURS ?? 24);
+  return Number.isFinite(value) && value >= 0 ? value : 24;
+};
 
 function readJson<T>(file: string, fallback: T): T {
   try {
@@ -71,6 +109,74 @@ function writeJson(file: string, value: unknown) {
 
 export const listAgents = (): AgentDef[] => readJson<AgentDef[]>(agentsFile, []);
 export const listRuns = (): AgentRun[] => readJson<AgentRun[]>(runsFile, []);
+
+interface VisitorRecord {
+  seededAt: string;
+  lastSeen: string;
+}
+
+let visitors: Record<string, VisitorRecord> | null = null;
+let visitorsSavedAt = 0;
+
+function visitorTable(): Record<string, VisitorRecord> {
+  if (!visitors) visitors = readJson<Record<string, VisitorRecord>>(visitorsFile, {});
+  return visitors;
+}
+
+/**
+ * The agents that belong to one visitor. A browser seen for the first time gets its own copies of
+ * the templates, so nobody shares a thread with anybody else. They are due at once, which means a
+ * new visitor watches them do their first run instead of reading someone else's history.
+ */
+export function agentsFor(user: string): AgentDef[] {
+  const table = visitorTable();
+  const now = new Date().toISOString();
+  const known = table[user];
+
+  if (!known) {
+    table[user] = { seededAt: now, lastSeen: now };
+    writeJson(visitorsFile, table);
+    visitorsSavedAt = Date.now();
+
+    const all = listAgents();
+    const suffix = Math.random().toString(36).slice(2, 8);
+    for (const template of all.filter((agent) => !agent.owner && agent.id in TEMPLATE_CONNECTORS)) {
+      all.push({
+        ...template,
+        id: `${template.id}_${suffix}`,
+        owner: user,
+        connectors: TEMPLATE_CONNECTORS[template.id],
+        enabled: true,
+        createdAt: now,
+        lastRunAt: undefined,
+      });
+    }
+    writeJson(agentsFile, all);
+  } else {
+    known.lastSeen = now;
+    // The page polls every few seconds; the file only needs to be roughly right.
+    if (Date.now() - visitorsSavedAt > 5 * 60_000) {
+      writeJson(visitorsFile, table);
+      visitorsSavedAt = Date.now();
+    }
+  }
+
+  return listAgents().filter((agent) => agent.owner === user);
+}
+
+/** One agent, only if this visitor owns it. */
+export function ownedAgent(id: string | undefined, user: string): AgentDef | null {
+  if (!id) return null;
+  return listAgents().find((agent) => agent.id === id && agent.owner === user) ?? null;
+}
+
+function ownerIsActive(agent: AgentDef, now: number): boolean {
+  if (!agent.owner) return false; // templates are copied, never run
+  const hours = activeHours();
+  if (hours === 0) return true;
+  const seen = Date.parse(visitorTable()[agent.owner]?.lastSeen ?? "");
+  return Number.isFinite(seen) && now - seen < hours * 3_600_000;
+}
 
 /**
  * A fresh container has no data volume contents, so the first boot would show an empty product.
@@ -179,21 +285,45 @@ async function prices(): Promise<Map<string, { in: number; out: number }>> {
  * Composio wins over the built-in IMAP reader when both are present, so the demo runs on one
  * connector layer rather than two.
  */
-async function watchTools(): Promise<unknown[]> {
+async function watchTools(agent: AgentDef): Promise<unknown[]> {
+  const own = (agent.custom ?? []).map(customTool);
   const { composioConfigured, composioTools } = await import("./composio.ts");
-  if (!composioConfigured()) return WATCH_TOOLS;
+  if (!composioConfigured()) return [...WATCH_TOOLS, ...own];
   try {
-    const { tools, slugs } = await composioTools();
-    if (slugs.size === 0) return WATCH_TOOLS;
+    const { tools, slugs } = await composioTools(agent.connectors);
+    if (slugs.size === 0) return [...WATCH_TOOLS, ...own];
     const gmailOwned = [...slugs].some((slug) => slug.startsWith("GMAIL_"));
     const local = WATCH_TOOLS.filter((tool) => {
       const name = (tool as { function?: { name?: string } }).function?.name;
       return !(gmailOwned && name === "gmail_list");
     });
-    return [...local, ...tools];
+    return [...local, ...tools, ...own];
   } catch {
-    return WATCH_TOOLS;
+    return [...WATCH_TOOLS, ...own];
   }
+}
+
+/** The tool name a custom connector is exposed under. Lower case, so it never looks like a Composio slug. */
+export const customToolName = (connector: CustomConnector) =>
+  `api_${connector.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "custom"}`;
+
+function customTool(connector: CustomConnector) {
+  return {
+    type: "function",
+    function: {
+      name: customToolName(connector),
+      description: `${connector.description} Reads from ${connector.url}.`.slice(0, 500),
+      parameters: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "Path and query string to add to the base URL, for example /v1/items?limit=5. Empty for the base URL itself.",
+          },
+        },
+      },
+    },
+  };
 }
 
 export async function runOnce(agent: AgentDef, message?: string, userId?: string): Promise<AgentRun> {
@@ -204,7 +334,7 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
   const asked = message?.trim();
 
   const run: AgentRun = {
-    id: `run_${started.toString(36)}`,
+    id: `run_${started.toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     agentId: agent.id,
     model: agent.model,
     startedAt: new Date(started).toISOString(),
@@ -266,8 +396,9 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         model: agent.model,
         request: `${asked ? `${asked}\n\nRemember: ` : ""}${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
         maxSteps: 7,
-        tools: await watchTools(),
+        tools: await watchTools(agent),
         userId,
+        custom: agent.custom,
       });
 
       const fetched = result.events
@@ -294,10 +425,14 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
   run.ms = Date.now() - started;
   const runs = listRuns();
   runs.push(run);
-  writeJson(runsFile, runs.slice(-400));
+  writeJson(runsFile, runs.slice(-5000));
 
-  agent.lastRunAt = run.startedAt;
-  saveAgent(agent);
+  // Re-read before saving: the owner may have swapped the model or paused it while this ran.
+  const current = listAgents().find((entry) => entry.id === agent.id);
+  if (current) {
+    current.lastRunAt = run.startedAt;
+    saveAgent(current);
+  }
 
   return run;
 }
@@ -315,11 +450,21 @@ let timer: ReturnType<typeof setInterval> | null = null;
 /** The scheduler. One tick every 20s; runs are short and there are never many agents. */
 export function startScheduler(onRun?: (run: AgentRun) => void) {
   if (timer) return;
+  let ticking = false;
   timer = setInterval(async () => {
-    for (const agent of listAgents()) {
-      if (!isDue(agent)) continue;
-      const run = await runOnce(agent);
-      onRun?.(run);
+    // A slow pass must not overlap the next one, or the same agent runs twice.
+    if (ticking) return;
+    ticking = true;
+    try {
+      const now = Date.now();
+      for (const agent of listAgents()) {
+        if (!ownerIsActive(agent, now) || !isDue(agent)) continue;
+        // Scheduled runs act as the owner, so their connected apps work without them present.
+        const run = await runOnce(agent, undefined, agent.owner);
+        onRun?.(run);
+      }
+    } finally {
+      ticking = false;
     }
   }, 20_000);
 }

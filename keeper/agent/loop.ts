@@ -53,6 +53,8 @@ export interface RunOptions {
   tools?: unknown[];
   /** Whose connected accounts the tools should act on. */
   userId?: string;
+  /** HTTPS APIs the agent's owner attached; see ToolContext.custom. */
+  custom?: Array<{ name: string; url: string; header?: { name: string; value: string } }>;
   /** Called as events happen, so a UI can stream them. */
   onEvent?: (event: AgentEvent) => void;
 }
@@ -148,7 +150,7 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
       }
       push({ step, kind: "tool_call", tool: call.name, args, at: Date.now() });
 
-      const result = await executeTool(options.scenario, ledger, call.name, args, { userId: options.userId });
+      const result = await executeTool(options.scenario, ledger, call.name, args, { userId: options.userId, custom: options.custom });
       push({
         step,
         kind: "tool_result",

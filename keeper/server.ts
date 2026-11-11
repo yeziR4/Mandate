@@ -17,15 +17,19 @@ import { judge, relayVerdict, runModel, signVerdictFor } from "./judge.ts";
 import { list, load, save } from "./store.ts";
 import type { Record as AttemptRecord } from "./store.ts";
 import {
+  agentsFor,
   deleteAgent,
   isDue,
-  listAgents,
+  MAX_AGENTS_PER_VISITOR,
+  MIN_EVERY_MINUTES,
+  ownedAgent,
   recentRuns,
   runOnce,
   saveAgent,
   seedAgents,
   startScheduler,
   type AgentDef,
+  type CustomConnector,
 } from "./agents/service.ts";
 import { listGatewayModels } from "./agents/models.ts";
 import type { Severity } from "../mandate/referee.ts";
@@ -38,6 +42,57 @@ const visitor = (req: IncomingMessage): string => {
   const value = Array.isArray(header) ? header[0] : header;
   return (value ?? "").trim() || "wick-demo";
 };
+
+/** Accept only well-formed custom connectors: an https base URL, a name, and what it is for. */
+function cleanCustom(input: unknown): CustomConnector[] {
+  if (!Array.isArray(input)) return [];
+  const out: CustomConnector[] = [];
+  for (const raw of input.slice(0, 3)) {
+    const item = (raw ?? {}) as Record<string, unknown>;
+    const name = String(item.name ?? "").trim().slice(0, 40);
+    const description = String(item.description ?? "").trim().slice(0, 300);
+    let url: URL;
+    try {
+      url = new URL(String(item.url ?? "").trim());
+    } catch {
+      continue;
+    }
+    // Public https hosts only: this keeper must not be a way to reach anything private.
+    const host = url.hostname.toLowerCase();
+    const privateHost =
+      host === "localhost" ||
+      host.endsWith(".local") ||
+      host.endsWith(".internal") ||
+      /^(\d+\.){3}\d+$/.test(host) ||
+      host.includes(":");
+    if (!name || url.protocol !== "https:" || privateHost) continue;
+    const header = (item.header ?? {}) as Record<string, unknown>;
+    const headerName = String(header.name ?? "").trim();
+    const headerValue = String(header.value ?? "").trim();
+    out.push({
+      name,
+      url: url.href.slice(0, 300),
+      description: description || `The ${name} API.`,
+      ...(/^[A-Za-z0-9-]{1,60}$/.test(headerName) && headerValue
+        ? { header: { name: headerName, value: headerValue.slice(0, 500) } }
+        : {}),
+    });
+  }
+  return out;
+}
+
+/** What a browser is allowed to see of an agent: everything except a connector's secret. */
+function publicAgent(agent: AgentDef) {
+  return {
+    ...agent,
+    custom: (agent.custom ?? []).map((connector) => ({
+      name: connector.name,
+      url: connector.url,
+      description: connector.description,
+      secured: Boolean(connector.header),
+    })),
+  };
+}
 
 const cors = {
   "access-control-allow-origin": "*",
@@ -137,8 +192,9 @@ export function createKeeper() {
 
       // ---- always-on agents -------------------------------------------------
       if (req.method === "GET" && url.pathname === "/agents") {
-        const agents = listAgents().map((agent) => ({
-          ...agent,
+        // Each browser sees only its own agents and their runs.
+        const agents = agentsFor(visitor(req)).map((agent) => ({
+          ...publicAgent(agent),
           nextRunAt: agent.lastRunAt
             ? new Date(Date.parse(agent.lastRunAt) + agent.everyMinutes * 60_000).toISOString()
             : new Date().toISOString(),
@@ -156,24 +212,37 @@ export function createKeeper() {
           send(res, 400, { error: "task and model are required" });
           return;
         }
+        const owner = visitor(req);
+        if (agentsFor(owner).length >= MAX_AGENTS_PER_VISITOR) {
+          send(res, 400, { error: `You can have up to ${MAX_AGENTS_PER_VISITOR} agents. Remove one first.` });
+          return;
+        }
+        const connectors = Array.isArray(body.connectors)
+          ? [...new Set(body.connectors.map((slug) => String(slug).toLowerCase().trim()))]
+              .filter((slug) => /^[a-z0-9_-]{1,60}$/.test(slug) && slug !== "web")
+              .slice(0, 6)
+          : [];
         const agent: AgentDef = {
-          id: `ag_${Date.now().toString(36)}`,
+          id: `ag_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+          owner,
+          connectors,
+          custom: cleanCustom(body.custom),
           name: String(body.name ?? "Untitled agent").slice(0, 60),
           task: String(body.task).slice(0, 2000),
           model: String(body.model),
-          everyMinutes: Math.max(1, Number(body.everyMinutes ?? 30)),
+          everyMinutes: Math.max(MIN_EVERY_MINUTES, Number(body.everyMinutes ?? 30) || 30),
           enabled: body.enabled !== false,
           kind: body.kind === "treasury" ? "treasury" : "watch",
           createdAt: new Date().toISOString(),
         };
         saveAgent(agent);
-        send(res, 200, { agent });
+        send(res, 200, { agent: publicAgent(agent) });
         return;
       }
 
       if (req.method === "POST" && url.pathname === "/agents/run") {
         const body = (await readBody(req)) as { id?: string; message?: string };
-        const agent = listAgents().find((entry) => entry.id === body.id);
+        const agent = ownedAgent(body.id, visitor(req));
         if (!agent) {
           send(res, 404, { error: "no such agent" });
           return;
@@ -185,33 +254,38 @@ export function createKeeper() {
 
       if (req.method === "POST" && url.pathname === "/agents/model") {
         const body = (await readBody(req)) as { id?: string; model?: string };
-        const agent = listAgents().find((entry) => entry.id === body.id);
+        const agent = ownedAgent(body.id, visitor(req));
         if (!agent || !body.model) {
           send(res, 404, { error: "no such agent or no model" });
           return;
         }
         agent.model = String(body.model);
         saveAgent(agent);
-        send(res, 200, { agent });
+        send(res, 200, { agent: publicAgent(agent) });
         return;
       }
 
       if (req.method === "POST" && url.pathname === "/agents/toggle") {
         const body = (await readBody(req)) as { id?: string; enabled?: boolean };
-        const agent = listAgents().find((entry) => entry.id === body.id);
+        const agent = ownedAgent(body.id, visitor(req));
         if (!agent) {
           send(res, 404, { error: "no such agent" });
           return;
         }
         agent.enabled = body.enabled !== false;
         saveAgent(agent);
-        send(res, 200, { agent });
+        send(res, 200, { agent: publicAgent(agent) });
         return;
       }
 
       if (req.method === "POST" && url.pathname === "/agents/delete") {
         const body = (await readBody(req)) as { id?: string };
-        if (body.id) deleteAgent(String(body.id));
+        const agent = ownedAgent(body.id, visitor(req));
+        if (!agent) {
+          send(res, 404, { error: "no such agent" });
+          return;
+        }
+        deleteAgent(agent.id);
         send(res, 200, { ok: true });
         return;
       }

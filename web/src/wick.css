@@ -1777,3 +1777,190 @@
     transition: none !important;
   }
 }
+
+/* ---------- apps an agent can use ---------- */
+
+.wk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.wk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--wk-raised);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--wk-teal-deep);
+  white-space: nowrap;
+}
+
+.wk-chip[data-custom="true"] {
+  background: var(--wk-coral-wash);
+  color: #a3271b;
+}
+
+.wk-chip button {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.wk-chip button:hover {
+  background: rgba(0, 60, 70, 0.12);
+  opacity: 1;
+}
+
+.wk-chip button svg {
+  width: 9px;
+  height: 9px;
+}
+
+.wk-order__apps {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wk-line);
+}
+
+.wk-order__apps .wk-label {
+  margin-right: 4px;
+}
+
+.wk-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 10px;
+  background: var(--wk-amber-hot);
+  font-size: 13px;
+  color: var(--wk-amber-ink);
+}
+
+.wk-applist--pick {
+  flex: none;
+  height: 216px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--wk-line);
+  border-radius: 12px;
+  background: var(--wk-ink);
+}
+
+.wk-applist--pick .wk-app:last-child {
+  border-bottom: 0;
+}
+
+.wk-app__connect[data-added="true"] {
+  border-color: var(--wk-teal);
+  background: var(--wk-teal);
+}
+
+.wk .wk-app__connect[data-added="true"] {
+  color: #fff;
+}
+
+.wk-app__connect:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wk-linkbtn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wk .wk-linkbtn {
+  color: var(--wk-hot);
+}
+
+.wk-linkbtn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wk-linkbtn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wk-linkbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  text-decoration: none;
+}
+
+.wk-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--wk-line);
+  border-radius: 14px;
+  background: var(--wk-ink);
+}
+
+.wk-custom .wk-input {
+  background: var(--wk-surface);
+}
+
+.wk-custom__title {
+  font-family: var(--wk-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wk-teal-deep);
+}
+
+.wk-custom__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.wk-custom__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wk-dim);
+}
+
+.wk-dialog__error {
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fff1ee;
+  font-size: 13px;
+  color: #a3271b;
+}
+
+.wk-dialog__head .wk-label {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 520px) {
+  .wk-custom__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

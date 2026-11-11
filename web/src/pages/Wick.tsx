@@ -69,7 +69,41 @@ interface Agent {
   nextRunAt: string;
   lastRun: AgentRun | null;
   runs: AgentRun[];
+  /** Apps this agent may use. Absent on agents made before agents chose their apps. */
+  connectors?: string[];
+  custom?: Array<{ name: string; url: string; description: string; secured: boolean }>;
 }
+
+/** An API the visitor is attaching while creating an agent. */
+interface CustomDraft {
+  name: string;
+  url: string;
+  description: string;
+  headerName: string;
+  headerValue: string;
+}
+
+const BLANK_CUSTOM: CustomDraft = { name: "", url: "", description: "", headerName: "", headerValue: "" };
+
+const BLANK_AGENT = {
+  name: "",
+  task: "",
+  model: "",
+  everyMinutes: 30,
+  connectors: [] as string[],
+  custom: [] as CustomDraft[],
+};
+
+const MAX_APPS = 6;
+const MAX_CUSTOM = 3;
+
+const validApiUrl = (value: string) => {
+  try {
+    return new URL(value.trim()).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
 
 interface Pending {
   agentId: string;
@@ -513,6 +547,7 @@ const STARTERS = [
     name: "Inbox digest",
     task: "Read my unread mail and tell me which three messages need a reply today, and why.",
     everyMinutes: 240,
+    connectors: ["gmail"],
   },
   {
     name: "Hiring scout",
@@ -537,7 +572,11 @@ export default function Wick() {
   const [showConnectors, setShowConnectors] = useState(false);
   const [composing, setComposing] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
-  const [newAgent, setNewAgent] = useState({ name: "", task: "", model: "", everyMinutes: 30 });
+  const [newAgent, setNewAgent] = useState(BLANK_AGENT);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [appQuery, setAppQuery] = useState("");
+  const [customDraft, setCustomDraft] = useState<CustomDraft | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
   const now = useNow();
 
@@ -599,27 +638,80 @@ export default function Wick() {
     if (!composing && !showConnectors) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      setComposing(false);
+      closeComposer();
       setShowConnectors(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [composing, showConnectors]);
 
-  const post = async (path: string, payload: unknown) => {
-    if (!KEEPER_URL) return;
+  /** Returns null when it worked, otherwise the reason it did not. */
+  const post = async (path: string, payload: unknown): Promise<string | null> => {
+    if (!KEEPER_URL) return "No keeper address is configured.";
     setBusy(true);
     try {
-      await fetch(`${KEEPER_URL}${path}`, {
+      const response = await fetch(`${KEEPER_URL}${path}`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-wick-user": VISITOR },
         body: JSON.stringify(payload),
       });
+      let failure: string | null = null;
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        failure = body.error ?? "The keeper refused that.";
+      }
       await load();
+      return failure;
+    } catch {
+      return "Can't reach the keeper right now.";
     } finally {
       setBusy(false);
     }
   };
+
+  const closeComposer = () => {
+    setComposing(false);
+    setStep(1);
+    setAppQuery("");
+    setCustomDraft(null);
+    setCreateError(null);
+  };
+
+  const createAgent = async () => {
+    setCreateError(null);
+    const failure = await post("/agents", {
+      name: newAgent.name || "Untitled agent",
+      task: newAgent.task,
+      model: newAgent.model,
+      everyMinutes: newAgent.everyMinutes,
+      kind: "watch",
+      connectors: newAgent.connectors,
+      custom: newAgent.custom.map((api) => ({
+        name: api.name.trim(),
+        url: api.url.trim(),
+        description: api.description.trim(),
+        ...(api.headerName.trim() && api.headerValue.trim()
+          ? { header: { name: api.headerName.trim(), value: api.headerValue.trim() } }
+          : {}),
+      })),
+    });
+    if (failure) {
+      setCreateError(failure);
+      return;
+    }
+    setNewAgent(BLANK_AGENT);
+    closeComposer();
+  };
+
+  const toggleApp = (id: string) =>
+    setNewAgent((current) => ({
+      ...current,
+      connectors: current.connectors.includes(id)
+        ? current.connectors.filter((entry) => entry !== id)
+        : current.connectors.length < MAX_APPS
+          ? [...current.connectors, id]
+          : current.connectors,
+    }));
 
   /** Run the agent, showing it awake in the thread while the keeper works. */
   const run = async (agentId: string, message?: string) => {
@@ -671,6 +763,20 @@ export default function Wick() {
       .sort((a, b) => rank[a.state] - rank[b.state])
       .slice(0, 60);
   }, [connectors, connectorQuery]);
+
+  const pickable = useMemo(() => {
+    const needle = appQuery.trim().toLowerCase();
+    return connectors
+      .filter((connector) => connector.id !== "web" && connector.label.toLowerCase().includes(needle))
+      .slice(0, 30);
+  }, [connectors, appQuery]);
+
+  const appLabel = (id: string) => connectors.find((connector) => connector.id === id)?.label ?? id;
+
+  /** Apps picked for the new agent that this browser has not authorised yet. */
+  const unconnected = newAgent.connectors
+    .map((id) => connectors.find((connector) => connector.id === id))
+    .filter((connector): connector is Connector => Boolean(connector) && connector!.state === "needs-auth");
 
   const untilWake = active ? Date.parse(active.nextRunAt) - now : 0;
 
@@ -816,6 +922,20 @@ export default function Wick() {
                   <div className="wk-order">
                     <span className="wk-label">Standing order</span>
                     <p>{active.task}</p>
+                    <div className="wk-chips wk-order__apps">
+                      <span className="wk-label">Can use</span>
+                      <span className="wk-chip">Web</span>
+                      {(active.connectors ?? []).map((id) => (
+                        <span className="wk-chip" key={id}>
+                          {appLabel(id)}
+                        </span>
+                      ))}
+                      {(active.custom ?? []).map((api) => (
+                        <span className="wk-chip" data-custom="true" key={api.name} title={api.url}>
+                          {api.name}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
                   {runs.length === 0 && !working && (
@@ -1006,102 +1126,292 @@ export default function Wick() {
       )}
 
       {composing && (
-        <div className="wk-modal" onClick={() => setComposing(false)}>
+        <div className="wk-modal" onClick={closeComposer}>
           <div className="wk-dialog" role="dialog" aria-label="New agent" onClick={(event) => event.stopPropagation()}>
             <div className="wk-dialog__head">
               <div>
-                <h2>New agent</h2>
-                <p>Write the job the way you would brief a person.</p>
+                <div className="wk-label">Step {step} of 2</div>
+                <h2>{step === 1 ? "New agent" : "What can it reach?"}</h2>
+                <p>
+                  {step === 1
+                    ? "Write the job the way you would brief a person."
+                    : "Every agent can read the web. Add apps or your own API if the job needs them."}
+                </p>
               </div>
-              <button className="wk-iconbtn" aria-label="Close" onClick={() => setComposing(false)}>
+              <button className="wk-iconbtn" aria-label="Close" onClick={closeComposer}>
                 {Icon.close}
               </button>
             </div>
 
-            <div className="wk-starters">
-              {STARTERS.map((starter) => (
-                <button
-                  key={starter.name}
-                  type="button"
-                  className="wk-starter"
-                  onClick={() => setNewAgent({ ...newAgent, ...starter })}
-                >
-                  {starter.name}
-                </button>
-              ))}
-            </div>
-
-            <div className="wk-form">
-              <label className="wk-field">
-                <span className="wk-label">Name</span>
-                <input
-                  id="wk-new-name"
-                  className="wk-input"
-                  placeholder="Price watch"
-                  value={newAgent.name}
-                  onChange={(event) => setNewAgent({ ...newAgent, name: event.target.value })}
-                />
-              </label>
-              <label className="wk-field">
-                <span className="wk-label">Standing order</span>
-                <textarea
-                  id="wk-new-task"
-                  className="wk-input wk-input--area"
-                  placeholder="What should it do each time it wakes up?"
-                  value={newAgent.task}
-                  onChange={(event) => setNewAgent({ ...newAgent, task: event.target.value })}
-                />
-              </label>
-              <div className="wk-field">
-                <span className="wk-label">Wakes every</span>
-                <div className="wk-seg" role="radiogroup" aria-label="Schedule">
-                  {SCHEDULES.map((minutes) => (
+            {step === 1 ? (
+              <>
+                <div className="wk-starters">
+                  {STARTERS.map((starter) => (
                     <button
-                      key={minutes}
+                      key={starter.name}
                       type="button"
-                      role="radio"
-                      aria-checked={newAgent.everyMinutes === minutes}
-                      className="wk-seg__opt"
-                      onClick={() => setNewAgent({ ...newAgent, everyMinutes: minutes })}
+                      className="wk-starter"
+                      onClick={() => setNewAgent({ ...newAgent, connectors: [], ...starter })}
                     >
-                      {every(minutes)}
+                      {starter.name}
                     </button>
                   ))}
                 </div>
-              </div>
-              <div className="wk-field">
-                <span className="wk-label">Model</span>
-                <ModelPicker
-                  value={newAgent.model}
-                  models={models}
-                  align="left"
-                  onPick={(id) => setNewAgent({ ...newAgent, model: id })}
-                />
-              </div>
-            </div>
 
-            <div className="wk-dialog__foot">
-              <button className="wk-btn" onClick={() => setComposing(false)}>
-                Cancel
-              </button>
-              <button
-                className="wk-btn wk-btn--lit"
-                disabled={!newAgent.task || !newAgent.model || busy}
-                onClick={async () => {
-                  await post("/agents", {
-                    name: newAgent.name || "Untitled agent",
-                    task: newAgent.task,
-                    model: newAgent.model,
-                    everyMinutes: newAgent.everyMinutes,
-                    kind: "watch",
-                  });
-                  setNewAgent({ name: "", task: "", model: "", everyMinutes: 30 });
-                  setComposing(false);
-                }}
-              >
-                Put it on duty
-              </button>
-            </div>
+                <div className="wk-form">
+                  <label className="wk-field">
+                    <span className="wk-label">Name</span>
+                    <input
+                      id="wk-new-name"
+                      className="wk-input"
+                      placeholder="Price watch"
+                      value={newAgent.name}
+                      onChange={(event) => setNewAgent({ ...newAgent, name: event.target.value })}
+                    />
+                  </label>
+                  <label className="wk-field">
+                    <span className="wk-label">Standing order</span>
+                    <textarea
+                      id="wk-new-task"
+                      className="wk-input wk-input--area"
+                      placeholder="What should it do each time it wakes up?"
+                      value={newAgent.task}
+                      onChange={(event) => setNewAgent({ ...newAgent, task: event.target.value })}
+                    />
+                  </label>
+                  <div className="wk-field">
+                    <span className="wk-label">Wakes every</span>
+                    <div className="wk-seg" role="radiogroup" aria-label="Schedule">
+                      {SCHEDULES.map((minutes) => (
+                        <button
+                          key={minutes}
+                          type="button"
+                          role="radio"
+                          aria-checked={newAgent.everyMinutes === minutes}
+                          className="wk-seg__opt"
+                          onClick={() => setNewAgent({ ...newAgent, everyMinutes: minutes })}
+                        >
+                          {every(minutes)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="wk-field">
+                    <span className="wk-label">Model</span>
+                    <ModelPicker
+                      value={newAgent.model}
+                      models={models}
+                      align="left"
+                      onPick={(id) => setNewAgent({ ...newAgent, model: id })}
+                    />
+                  </div>
+                </div>
+
+                <div className="wk-dialog__foot">
+                  <button className="wk-btn" onClick={closeComposer}>
+                    Cancel
+                  </button>
+                  <button
+                    className="wk-btn wk-btn--lit"
+                    disabled={!newAgent.task.trim() || !newAgent.model}
+                    onClick={() => setStep(2)}
+                  >
+                    Next: apps
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="wk-form">
+                  <div className="wk-field">
+                    <span className="wk-label">This agent can use</span>
+                    <div className="wk-chips">
+                      <span className="wk-chip">Web</span>
+                      {newAgent.connectors.map((id) => (
+                        <span className="wk-chip" key={id}>
+                          {appLabel(id)}
+                          <button type="button" aria-label={`Remove ${appLabel(id)}`} onClick={() => toggleApp(id)}>
+                            {Icon.close}
+                          </button>
+                        </span>
+                      ))}
+                      {newAgent.custom.map((api, index) => (
+                        <span className="wk-chip" data-custom="true" key={`${api.name}-${index}`}>
+                          {api.name}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${api.name}`}
+                            onClick={() =>
+                              setNewAgent({
+                                ...newAgent,
+                                custom: newAgent.custom.filter((_, position) => position !== index),
+                              })
+                            }
+                          >
+                            {Icon.close}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    {unconnected.map((connector) => (
+                      <div className="wk-notice" key={connector.id}>
+                        <span>{connector.label} is not connected in this browser yet.</span>
+                        <button type="button" className="wk-app__connect" onClick={() => void connect(connector.id)}>
+                          Connect {connector.label}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {customDraft ? (
+                    <div className="wk-custom">
+                      <div className="wk-custom__title">Your own API</div>
+                      <div className="wk-custom__grid">
+                        <label className="wk-field">
+                          <span className="wk-label">Name</span>
+                          <input
+                            id="wk-api-name"
+                            autoFocus
+                            className="wk-input"
+                            placeholder="Orders API"
+                            value={customDraft.name}
+                            onChange={(event) => setCustomDraft({ ...customDraft, name: event.target.value })}
+                          />
+                        </label>
+                        <label className="wk-field">
+                          <span className="wk-label">Base address</span>
+                          <input
+                            id="wk-api-url"
+                            className="wk-input"
+                            placeholder="https://api.example.com/v1"
+                            value={customDraft.url}
+                            onChange={(event) => setCustomDraft({ ...customDraft, url: event.target.value })}
+                          />
+                        </label>
+                      </div>
+                      <label className="wk-field">
+                        <span className="wk-label">What the agent should use it for</span>
+                        <input
+                          id="wk-api-what"
+                          className="wk-input"
+                          placeholder="Look up open orders and their status"
+                          value={customDraft.description}
+                          onChange={(event) => setCustomDraft({ ...customDraft, description: event.target.value })}
+                        />
+                      </label>
+                      <div className="wk-custom__grid">
+                        <label className="wk-field">
+                          <span className="wk-label">Header name (optional)</span>
+                          <input
+                            id="wk-api-header"
+                            className="wk-input"
+                            placeholder="Authorization"
+                            value={customDraft.headerName}
+                            onChange={(event) => setCustomDraft({ ...customDraft, headerName: event.target.value })}
+                          />
+                        </label>
+                        <label className="wk-field">
+                          <span className="wk-label">Header value</span>
+                          <input
+                            id="wk-api-secret"
+                            type="password"
+                            autoComplete="off"
+                            className="wk-input"
+                            placeholder="Bearer ..."
+                            value={customDraft.headerValue}
+                            onChange={(event) => setCustomDraft({ ...customDraft, headerValue: event.target.value })}
+                          />
+                        </label>
+                      </div>
+                      <p className="wk-custom__note">
+                        Read-only: the agent can fetch any path under this address. A header is kept on the server
+                        and never shown again.
+                      </p>
+                      <div className="wk-dialog__foot">
+                        <button type="button" className="wk-btn" onClick={() => setCustomDraft(null)}>
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="wk-btn wk-btn--lit"
+                          disabled={!customDraft.name.trim() || !validApiUrl(customDraft.url)}
+                          onClick={() => {
+                            setNewAgent({ ...newAgent, custom: [...newAgent.custom, customDraft] });
+                            setCustomDraft(null);
+                          }}
+                        >
+                          Add this API
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        id="wk-new-app-search"
+                        className="wk-input"
+                        placeholder={`Search ${connectors.length} apps`}
+                        value={appQuery}
+                        onChange={(event) => setAppQuery(event.target.value)}
+                      />
+                      <div className="wk-applist wk-applist--pick">
+                        {pickable.map((connector) => {
+                          const added = newAgent.connectors.includes(connector.id);
+                          return (
+                            <div className="wk-app" key={connector.id} data-state={connector.state}>
+                              {connector.logo ? (
+                                <img src={connector.logo} alt="" loading="lazy" />
+                              ) : (
+                                <span className="wk-app__glyph">{connector.label.slice(0, 1)}</span>
+                              )}
+                              <span className="wk-app__name">{connector.label}</span>
+                              {connector.state === "live" && <span className="wk-app__state">Connected</span>}
+                              {connector.state === "needs-app" ? (
+                                <span className="wk-app__state" title="Needs your own developer app on Composio">
+                                  Needs your own app
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="wk-app__connect"
+                                  data-added={added}
+                                  disabled={!added && newAgent.connectors.length >= MAX_APPS}
+                                  onClick={() => toggleApp(connector.id)}
+                                >
+                                  {added ? "Added" : "Add"}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {pickable.length === 0 && <p className="wk-applist__none">No app matches that.</p>}
+                      </div>
+                      <button
+                        type="button"
+                        className="wk-linkbtn"
+                        disabled={newAgent.custom.length >= MAX_CUSTOM}
+                        onClick={() => setCustomDraft(BLANK_CUSTOM)}
+                      >
+                        {Icon.plus}
+                        Add your own API
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {createError && <div className="wk-dialog__error">{createError}</div>}
+
+                {!customDraft && (
+                  <div className="wk-dialog__foot">
+                    <button className="wk-btn" onClick={() => setStep(1)}>
+                      Back
+                    </button>
+                    <button className="wk-btn wk-btn--lit" disabled={busy} onClick={() => void createAgent()}>
+                      Put it on duty
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

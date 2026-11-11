@@ -56,37 +56,58 @@ function openAiTool(tool: ComposioTool) {
   };
 }
 
-let cache: { at: number; tools: unknown[]; slugs: Set<string> } | null = null;
+/** How many tools an uncurated toolkit contributes. Same reason as CURATED: fewer is better. */
+const UNCURATED_LIMIT = 6;
 
-/** Tool definitions for the configured toolkits, in the shape the model expects. */
-export async function composioTools(): Promise<{ tools: unknown[]; slugs: Set<string> }> {
+const toolkitTools = new Map<string, { at: number; tools: ComposioTool[] }>();
+
+/** The tools one toolkit gives an agent: the curated set when we have one, otherwise its first few. */
+async function toolsOf(toolkit: string): Promise<ComposioTool[]> {
+  const cached = toolkitTools.get(toolkit);
+  if (cached && Date.now() - cached.at < 10 * 60_000) return cached.tools;
+
+  let picked: ComposioTool[] = [];
+  try {
+    const response = await fetch(
+      `${BASE}/tools?toolkit_slug=${encodeURIComponent(toolkit)}&toolkit_versions=latest&limit=200`,
+      { headers: headers() }
+    );
+    if (response.ok) {
+      const items = ((await response.json()) as { items?: ComposioTool[] }).items ?? [];
+      const curated = CURATED[toolkit];
+      picked = curated
+        ? items.filter((tool) => curated.includes(tool.slug))
+        : items.slice(0, UNCURATED_LIMIT);
+    }
+  } catch {
+    /* toolkit unavailable: skip it rather than failing the run */
+  }
+
+  toolkitTools.set(toolkit, { at: Date.now(), tools: picked });
+  return picked;
+}
+
+/**
+ * Tool definitions in the shape the model expects, for the toolkits one agent may use.
+ * With no list (records from before agents chose their apps) it is every curated toolkit.
+ */
+export async function composioTools(
+  toolkits?: string[]
+): Promise<{ tools: unknown[]; slugs: Set<string> }> {
   if (!composioConfigured()) return { tools: [], slugs: new Set() };
-  if (cache && Date.now() - cache.at < 5 * 60_000) return cache;
 
-  const wanted = new Set(Object.values(CURATED).flat());
   const tools: unknown[] = [];
   const slugs = new Set<string>();
 
-  for (const toolkit of Object.keys(CURATED)) {
-    try {
-      const response = await fetch(
-        `${BASE}/tools?toolkit_slug=${toolkit}&toolkit_versions=latest&limit=200`,
-        { headers: headers() }
-      );
-      if (!response.ok) continue;
-      const body = (await response.json()) as { items?: ComposioTool[] };
-      for (const tool of body.items ?? []) {
-        if (!wanted.has(tool.slug)) continue;
-        tools.push(openAiTool(tool));
-        slugs.add(tool.slug);
-      }
-    } catch {
-      /* toolkit unavailable: skip it rather than failing the run */
+  for (const toolkit of toolkits ?? Object.keys(CURATED)) {
+    for (const tool of await toolsOf(toolkit.toLowerCase())) {
+      if (slugs.has(tool.slug)) continue;
+      tools.push(openAiTool(tool));
+      slugs.add(tool.slug);
     }
   }
 
-  cache = { at: Date.now(), tools, slugs };
-  return cache;
+  return { tools, slugs };
 }
 
 export interface ComposioResult {
