@@ -1082,3 +1082,14 @@
   border-radius: 10px;
   background: rgba(4, 22, 28, 0.45);
 }
+
+.wk-avatar img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+}
+
+.wk-avatar--sm img {
+  width: 80%;
+  height: 80%;
+}

@@ -131,13 +131,14 @@ export async function executeTool(
           headers: { "user-agent": "mandate-agent/1.0" },
           signal: AbortSignal.timeout(15_000),
         });
-        const text = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 4000);
+        // Do not tell the model the HTTP status or that it was truncated: that is plumbing, and
+        // a model handed it will write about the plumbing instead of the answer.
+        const body = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 6000);
         ledger.reads.push({ tool: name, value: url });
-        return {
-          ok: response.ok,
-          observation: `HTTP ${response.status} ${text.slice(0, 2000)}`,
-          data: { status: response.status },
-        };
+        if (!response.ok) {
+          return { ok: false, observation: `The page could not be read.`, data: { status: response.status } };
+        }
+        return { ok: true, observation: body, data: { status: response.status } };
       } catch (cause) {
         return { ok: false, observation: `Fetch failed: ${String(cause).slice(0, 120)}` };
       }

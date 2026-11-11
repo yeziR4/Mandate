@@ -176,10 +176,12 @@ export async function runOnce(agent: AgentDef, message?: string): Promise<AgentR
       const watchScenario = {
         name: "watch",
         policy: [
-          "You are an always-on agent. Each run you wake up, do your job once, and report.",
-          "Use http_get to look at real pages. Do not claim you cannot access the internet.",
-          "Report concretely: what you fetched, what the numbers were, and what you would do next.",
-          "Keep it under 120 words.",
+          "You are an always-on agent reporting to your owner.",
+          "Use http_get to look at the page you were told to check.",
+          "Reply with the finding only, in the shortest form that answers the job.",
+          "Never mention tools, requests, HTTP status, truncation, parsing, or what you would do next.",
+          "Never apologise or explain your process. If something was unavailable, say what you could not get in one clause and stop.",
+          "Two sentences maximum unless the job asks for a list.",
         ].join(" "),
         treasury: { balance: 0, currency: "n/a" },
         invoices: [],
