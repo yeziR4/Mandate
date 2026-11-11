@@ -2,23 +2,25 @@
   {
     "id": "ag_watch",
     "name": "ETH price watch",
-    "task": "Call http_get exactly once with this URL: https://api.coinbase.com/v2/prices/ETH-USD/spot . Then report the ETH price in USD in one sentence. Flag it if below 2000.",
+    "task": "Check the ETH price in USD and flag it if it drops below $2,000.",
+    "hint": "Use http_get exactly once with this URL: https://api.coinbase.com/v2/prices/ETH-USD/spot . Then answer in one sentence.",
     "model": "deepseek/deepseek-v4.1-flash",
     "everyMinutes": 30,
     "enabled": true,
     "kind": "watch",
-    "createdAt": "2026-11-11T11:34:13.539Z",
-    "lastRunAt": "2026-11-11T12:34:28.452Z"
+    "createdAt": "2026-11-11T00:00:00.000Z",
+    "lastRunAt": "2026-11-11T12:38:56.039Z"
   },
   {
     "id": "ag_jobs",
     "name": "Hiring scout",
-    "task": "Call http_get exactly once with this URL: https://hn.algolia.com/api/v1/search?tags=story&query=hiring&hitsPerPage=3 . Then summarise the three hiring posts it returns in three short lines.",
+    "task": "Summarise the three most recent hiring posts on Hacker News.",
+    "hint": "Use http_get exactly once with this URL: https://hn.algolia.com/api/v1/search?tags=story&query=hiring&hitsPerPage=3 . Then answer in three short lines.",
     "model": "z-ai/glm-5.3-flash",
     "everyMinutes": 60,
     "enabled": true,
     "kind": "watch",
-    "createdAt": "2026-11-11T11:34:13.540Z",
-    "lastRunAt": "2026-11-11T12:34:33.250Z"
+    "createdAt": "2026-11-11T00:00:00.000Z",
+    "lastRunAt": "2026-11-11T12:38:50.851Z"
   }
 ]

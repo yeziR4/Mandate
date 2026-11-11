@@ -23,7 +23,10 @@ const dataDir = path.resolve(root, "data");
 export interface AgentDef {
   id: string;
   name: string;
+  /** What the person sees on the card. Plain language. */
   task: string;
+  /** Machine detail appended to the run only: exact URLs, output format. Never displayed. */
+  hint?: string;
   model: string;
   everyMinutes: number;
   enabled: boolean;
@@ -181,7 +184,7 @@ export async function runOnce(agent: AgentDef): Promise<AgentRun> {
         authMode,
         scenario: watchScenario,
         model: agent.model,
-        request: `${agent.task}\n\nRun time: ${new Date().toISOString()}`,
+        request: `${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
         maxSteps: 7,
         tools: WATCH_TOOLS,
       });
