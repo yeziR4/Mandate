@@ -16,6 +16,17 @@ import { arenaAbi, config, publicClient, keeperAccount } from "./config.ts";
 import { judge, relayVerdict, runModel, signVerdictFor } from "./judge.ts";
 import { list, load, save } from "./store.ts";
 import type { Record as AttemptRecord } from "./store.ts";
+import {
+  deleteAgent,
+  isDue,
+  listAgents,
+  recentRuns,
+  runOnce,
+  saveAgent,
+  startScheduler,
+  type AgentDef,
+} from "./agents/service.ts";
+import { listGatewayModels } from "./agents/models.ts";
 import type { Severity } from "../mandate/referee.ts";
 
 const MAX_BODY = 64 * 1024;
@@ -113,6 +124,92 @@ export function createKeeper() {
 
       if (req.method === "POST" && url.pathname === "/attempts") {
         await handleAttempt(req, res);
+        return;
+      }
+
+      // ---- always-on agents -------------------------------------------------
+      if (req.method === "GET" && url.pathname === "/agents") {
+        const agents = listAgents().map((agent) => ({
+          ...agent,
+          nextRunAt: agent.lastRunAt
+            ? new Date(Date.parse(agent.lastRunAt) + agent.everyMinutes * 60_000).toISOString()
+            : new Date().toISOString(),
+          due: isDue(agent),
+          lastRun: recentRuns(agent.id, 1)[0] ?? null,
+          runs: recentRuns(agent.id, 6),
+        }));
+        send(res, 200, { agents, now: new Date().toISOString() });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/agents") {
+        const body = (await readBody(req)) as Partial<AgentDef> & { name?: string; task?: string };
+        if (!body.task || !body.model) {
+          send(res, 400, { error: "task and model are required" });
+          return;
+        }
+        const agent: AgentDef = {
+          id: `ag_${Date.now().toString(36)}`,
+          name: String(body.name ?? "Untitled agent").slice(0, 60),
+          task: String(body.task).slice(0, 2000),
+          model: String(body.model),
+          everyMinutes: Math.max(1, Number(body.everyMinutes ?? 30)),
+          enabled: body.enabled !== false,
+          kind: body.kind === "treasury" ? "treasury" : "watch",
+          createdAt: new Date().toISOString(),
+        };
+        saveAgent(agent);
+        send(res, 200, { agent });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/agents/run") {
+        const body = (await readBody(req)) as { id?: string; message?: string };
+        const agent = listAgents().find((entry) => entry.id === body.id);
+        if (!agent) {
+          send(res, 404, { error: "no such agent" });
+          return;
+        }
+        const run = await runOnce(agent, body.message ? String(body.message) : undefined);
+        send(res, 200, { run });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/agents/model") {
+        const body = (await readBody(req)) as { id?: string; model?: string };
+        const agent = listAgents().find((entry) => entry.id === body.id);
+        if (!agent || !body.model) {
+          send(res, 404, { error: "no such agent or no model" });
+          return;
+        }
+        agent.model = String(body.model);
+        saveAgent(agent);
+        send(res, 200, { agent });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/agents/toggle") {
+        const body = (await readBody(req)) as { id?: string; enabled?: boolean };
+        const agent = listAgents().find((entry) => entry.id === body.id);
+        if (!agent) {
+          send(res, 404, { error: "no such agent" });
+          return;
+        }
+        agent.enabled = body.enabled !== false;
+        saveAgent(agent);
+        send(res, 200, { agent });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/agents/delete") {
+        const body = (await readBody(req)) as { id?: string };
+        if (body.id) deleteAgent(String(body.id));
+        send(res, 200, { ok: true });
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/agents/models") {
+        send(res, 200, { models: await listGatewayModels() });
         return;
       }
 
@@ -323,6 +420,13 @@ server.listen(config.port, () => {
   console.log(`keeper listening on :${config.port}`);
   console.log(`arena   ${config.arena}`);
   console.log(`signer  ${keeperAccount?.address ?? "none (verdicts will fail)"}`);
+  // Always-on agents: the scheduler wakes due agents every 20s.
+  if (process.env.AGENTS_ENABLED !== "0") {
+    startScheduler((run) => {
+      console.log(`agent run ${run.agentId} on ${run.model}: ${run.ok ? "ok" : "failed"} in ${run.ms}ms`);
+    });
+    console.log(`agents  scheduler on`);
+  }
   console.log(
     `models  ${config.models.map((model) => `${model.label}${model.mock ? " (mock)" : ""}`).join(", ")}`
   );

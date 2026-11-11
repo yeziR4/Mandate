@@ -42,6 +42,10 @@ export interface AgentRun {
   startedAt: string;
   ms: number;
   output: string;
+  /** The message that triggered this run, when a person sent one. Absent for scheduled runs. */
+  prompt?: string;
+  /** Why it ran: on its schedule, or because someone asked. */
+  trigger?: "schedule" | "person";
   promptTokens: number;
   completionTokens: number;
   costUsd: number | null;
@@ -122,11 +126,12 @@ async function prices(): Promise<Map<string, { in: number; out: number }>> {
   return map;
 }
 
-export async function runOnce(agent: AgentDef): Promise<AgentRun> {
+export async function runOnce(agent: AgentDef, message?: string): Promise<AgentRun> {
   const baseUrl = process.env.OTARI_BASE_URL ?? "https://otari.ai/api/v1";
   const apiKey = process.env.OTARI_API_KEY ?? "";
   const authMode = baseUrl.includes("otari") ? ("otari" as const) : ("bearer" as const);
   const started = Date.now();
+  const asked = message?.trim();
 
   const run: AgentRun = {
     id: `run_${started.toString(36)}`,
@@ -135,6 +140,8 @@ export async function runOnce(agent: AgentDef): Promise<AgentRun> {
     startedAt: new Date(started).toISOString(),
     ms: 0,
     output: "",
+    prompt: asked || undefined,
+    trigger: asked ? "person" : "schedule",
     promptTokens: 0,
     completionTokens: 0,
     costUsd: null,
@@ -184,7 +191,7 @@ export async function runOnce(agent: AgentDef): Promise<AgentRun> {
         authMode,
         scenario: watchScenario,
         model: agent.model,
-        request: `${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
+        request: `${asked ? `${asked}\n\nRemember: ` : ""}${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
         maxSteps: 7,
         tools: WATCH_TOOLS,
       });
