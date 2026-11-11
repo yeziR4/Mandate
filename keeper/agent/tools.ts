@@ -97,14 +97,30 @@ export const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "gmail_list",
+      description:
+        "List recent emails from the connected Gmail inbox: sender, subject, date and a short preview of each.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Optional text to match in subject, sender or body" },
+          limit: { type: "number", description: "How many messages, 1 to 20. Default 8." },
+          unreadOnly: { type: "boolean", description: "Only unread messages" },
+        },
+      },
+    },
+  },
 ] as const;
 
 /** The watch agents get only the network tool; treasury agents get only the money tools. */
 export const WATCH_TOOLS = [
-  (TOOL_DEFINITIONS as unknown as Array<{ function: { name: string } }>).find(
-    (tool) => tool.function.name === "http_get"
+  ...(TOOL_DEFINITIONS as unknown as Array<{ function: { name: string } }>).filter((tool) =>
+    ["http_get", "gmail_list"].includes(tool.function.name)
   ),
-].filter(Boolean) as unknown[];
+] as unknown[];
 
 export interface ToolResult {
   ok: boolean;
@@ -121,6 +137,35 @@ export async function executeTool(
   args: Record<string, unknown>
 ): Promise<ToolResult> {
   switch (name) {
+    case "gmail_list": {
+      const { gmailConfigured, listMail } = await import("../agents/gmail.ts");
+      if (!gmailConfigured()) {
+        return { ok: false, observation: "Gmail is not connected for this workspace." };
+      }
+      try {
+        const messages = await listMail({
+          query: args.query ? String(args.query) : undefined,
+          limit: Number(args.limit ?? 8),
+          unreadOnly: args.unreadOnly === true,
+        });
+        ledger.reads.push({ tool: name, value: messages.length });
+        if (messages.length === 0) {
+          return { ok: true, observation: "No messages matched." };
+        }
+        return {
+          ok: true,
+          observation: messages
+            .map(
+              (mail) =>
+                `From: ${mail.from}\nSubject: ${mail.subject}\nDate: ${mail.date}\n${mail.preview}`
+            )
+            .join("\n---\n"),
+          data: messages,
+        };
+      } catch (cause) {
+        return { ok: false, observation: `Inbox could not be read: ${String(cause).slice(0, 120)}` };
+      }
+    }
     case "http_get": {
       const url = String(args.url ?? "");
       if (!/^https:\/\//i.test(url)) {

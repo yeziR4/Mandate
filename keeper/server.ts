@@ -213,6 +213,23 @@ export function createKeeper() {
         return;
       }
 
+      if (req.method === "GET" && url.pathname === "/agents/connectors") {
+        const { gmailConfigured } = await import("./agents/gmail.ts");
+        send(res, 200, {
+          connectors: [
+            { id: "web", label: "Web fetch", state: "live" },
+            {
+              id: "gmail",
+              label: "Gmail",
+              state: gmailConfigured() ? "live" : "needs-key",
+            },
+            { id: "x", label: "X / Twitter", state: "soon" },
+            { id: "calendar", label: "Calendar", state: "soon" },
+          ],
+        });
+        return;
+      }
+
       if (req.method === "POST" && url.pathname === "/review") {
         if (!authorized(req)) {
           send(res, 401, { error: "unauthorized" });

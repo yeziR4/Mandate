@@ -31,6 +31,8 @@ interface AgentRun {
   error?: string;
 }
 
+interface Connector { id: string; label: string; state: string; }
+
 interface Agent {
   id: string;
   name: string;
@@ -72,6 +74,7 @@ function dayLabel(iso: string) {
 export default function Wick() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [models, setModels] = useState<GatewayModel[]>([]);
+  const [connectors, setConnectors] = useState<Connector[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
@@ -87,9 +90,10 @@ export default function Wick() {
       return;
     }
     try {
-      const [agentsResponse, modelsResponse] = await Promise.all([
+      const [agentsResponse, modelsResponse, connectorsResponse] = await Promise.all([
         fetch(`${KEEPER_URL}/agents`),
         fetch(`${KEEPER_URL}/agents/models`),
+        fetch(`${KEEPER_URL}/agents/connectors`),
       ]);
       if (agentsResponse.ok) {
         const list = ((await agentsResponse.json()) as { agents: Agent[] }).agents;
@@ -101,6 +105,10 @@ export default function Wick() {
       }
       if (modelsResponse.ok)
         setModels(((await modelsResponse.json()) as { models: GatewayModel[] }).models);
+      if (connectorsResponse.ok)
+        setConnectors(
+          ((await connectorsResponse.json()) as { connectors: Connector[] }).connectors
+        );
       setError(null);
     } catch (cause) {
       setError(`keeper unreachable: ${String(cause).slice(0, 100)}`);
@@ -218,22 +226,22 @@ export default function Wick() {
             <div className="wk-sheet">
               <h4>Connectors</h4>
               <p>Tools an agent can call while it runs.</p>
-              <div className="wk-connector">
-                <span>Web fetch</span>
-                <span className="wk-connector__state wk-connector__state--live">live</span>
-              </div>
-              <div className="wk-connector">
-                <span>X / Twitter</span>
-                <span className="wk-connector__state">soon</span>
-              </div>
-              <div className="wk-connector">
-                <span>Gmail</span>
-                <span className="wk-connector__state">soon</span>
-              </div>
-              <div className="wk-connector">
-                <span>Calendar</span>
-                <span className="wk-connector__state">soon</span>
-              </div>
+              {connectors.map((connector) => (
+                <div className="wk-connector" key={connector.id}>
+                  <span>{connector.label}</span>
+                  <span
+                    className={`wk-connector__state${
+                      connector.state === "live"
+                        ? " wk-connector__state--live"
+                        : connector.state === "needs-key"
+                          ? " wk-connector__state--key"
+                          : ""
+                    }`}
+                  >
+                    {connector.state === "needs-key" ? "add key" : connector.state}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </aside>

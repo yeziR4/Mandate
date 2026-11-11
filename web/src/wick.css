@@ -1093,3 +1093,7 @@
   width: 80%;
   height: 80%;
 }
+
+.wk-connector__state--key {
+  color: var(--wk-amber);
+}
