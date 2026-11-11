@@ -71,33 +71,78 @@ async function fetchTools(params: string): Promise<ComposioTool[]> {
   }
 }
 
+const STOP = new Set(
+  "the and for with from that this what which when then than them they their your you are was were will would should could have has had into about each every all any not but can its it's how who why where there here out off over under just only more most less few some such per via use using get got me my our".split(" ")
+);
+
+const READS = new Set(["list", "get", "fetch", "search", "find", "read", "retrieve", "query"]);
+const DESTRUCTIVE = new Set(["delete", "remove", "archive", "ban", "revoke", "kick", "purge", "destroy", "close", "leave"]);
+
+/** Words that carry meaning, crudely singularised so "repositories" meets "repository". */
+function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 2 && !STOP.has(word))
+    .map((word) => word.replace(/ies$/, "y").replace(/s$/, ""));
+}
+
+/** How well a tool matches a job: a word in the tool's own name counts three times a word in its description. */
+function relevance(tool: ComposioTool, job: Set<string>, toolkit: string): number {
+  const name = new Set(words(`${tool.slug} ${tool.name ?? ""}`));
+  const description = new Set(words(tool.description ?? ""));
+  let score = 0;
+  for (const word of job) {
+    if (word === toolkit) continue; // every tool in the toolkit says "github"
+    if (name.has(word)) score += 3;
+    else if (description.has(word)) score += 1;
+  }
+  if (score === 0) return 0;
+  // An always-on agent mostly reads. Prefer tools that look things up, and never hand it a tool
+  // that destroys something unless the job itself says so.
+  const verbs = words(tool.slug);
+  if (verbs.some((verb) => DESTRUCTIVE.has(verb) && !job.has(verb))) return 0;
+  if (verbs.some((verb) => READS.has(verb))) score += 2;
+  // Between equal matches, the shorter name is the more general tool.
+  return score - tool.slug.length / 1000;
+}
+
 /**
  * The tools one toolkit gives an agent. A curated toolkit gives its curated set. Anything else can
- * have hundreds of tools (GitHub has 883), so we ask Composio for the ones that match the job, and
- * fall back to the toolkit's featured tools when the job text matches nothing.
+ * have hundreds of tools (GitHub has 883) and Composio's own search does not rank them usefully,
+ * so we read the whole list once and keep the ones whose names match the job. With no match at
+ * all, the toolkit's featured tools stand in.
  */
 async function toolsOf(toolkit: string, job: string): Promise<ComposioTool[]> {
-  const curated = CURATED[toolkit];
-  const key = curated ? toolkit : `${toolkit}\n${job}`;
-  const cached = toolkitTools.get(key);
-  if (cached && Date.now() - cached.at < 10 * 60_000) return cached.tools;
-
   const slug = encodeURIComponent(toolkit);
-  let picked: ComposioTool[];
-  if (curated) {
-    picked = (await fetchTools(`toolkit_slug=${slug}&limit=200`)).filter((tool) => curated.includes(tool.slug));
-  } else {
-    picked = job
-      ? await fetchTools(`toolkit_slug=${slug}&query=${encodeURIComponent(job.slice(0, 200))}&limit=${UNCURATED_LIMIT}`)
-      : [];
-    if (picked.length === 0) picked = await fetchTools(`toolkit_slug=${slug}&important=true&limit=${UNCURATED_LIMIT}`);
-    if (picked.length === 0) picked = await fetchTools(`toolkit_slug=${slug}&limit=${UNCURATED_LIMIT}`);
-    picked = picked.slice(0, UNCURATED_LIMIT);
+  let all = toolkitTools.get(toolkit);
+  if (!all || Date.now() - all.at > 30 * 60_000) {
+    all = { at: Date.now(), tools: await fetchTools(`toolkit_slug=${slug}&limit=1000`) };
+    if (all.tools.length > 0) {
+      // Catalogues are large (GitHub's is 6 MB). Keep a handful, drop the oldest.
+      if (toolkitTools.size >= 10) toolkitTools.delete(toolkitTools.keys().next().value as string);
+      toolkitTools.set(toolkit, all);
+    }
   }
 
-  if (toolkitTools.size > 500) toolkitTools.clear();
-  toolkitTools.set(key, { at: Date.now(), tools: picked });
-  return picked;
+  const curated = CURATED[toolkit];
+  if (curated) return all.tools.filter((tool) => curated.includes(tool.slug));
+
+  const wanted = new Set(words(job));
+  const ranked = all.tools
+    .map((tool) => ({ tool, score: relevance(tool, wanted, toolkit) }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, UNCURATED_LIMIT)
+    .map((entry) => entry.tool);
+  if (ranked.length >= UNCURATED_LIMIT) return ranked;
+
+  // Too few matches: top up with the toolkit's featured tools, minus anything destructive.
+  const have = new Set(ranked.map((tool) => tool.slug));
+  const featured = (await fetchTools(`toolkit_slug=${slug}&important=true&limit=30`)).filter(
+    (tool) => !have.has(tool.slug) && !words(tool.slug).some((verb) => DESTRUCTIVE.has(verb) && !wanted.has(verb))
+  );
+  return [...ranked, ...featured].slice(0, UNCURATED_LIMIT);
 }
 
 /**
