@@ -33,7 +33,7 @@ function RouteEffects() {
         : pathname.startsWith("/certificate/")
           ? "Certificate"
           : "Not found");
-    document.title = pathname === "/" ? "Wick — agents that don't sleep" : `${title} — Mandate`;
+    document.title = pathname === "/" ? "Pup — agents that don't sleep" : `${title} — Mandate`;
   }, [pathname]);
   return null;
 }
