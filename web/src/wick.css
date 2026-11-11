@@ -817,3 +817,268 @@
     overflow-y: auto;
   }
 }
+
+/* ---------- refined chat surface ---------- */
+
+.wk-hdr__meta {
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.wk-btn--sm {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-width: 1px;
+}
+
+.wk-rail__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  margin: 0 -6px;
+  padding: 0 6px;
+}
+
+.wk-agentitem {
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  position: relative;
+}
+
+.wk-agentitem[data-active="true"] {
+  background: rgba(238, 229, 228, 0.07);
+  border-color: rgba(238, 229, 228, 0.1);
+}
+
+.wk-agentitem[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  background: var(--wk-amber);
+}
+
+.wk-agentitem__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wk-agentitem__preview {
+  font-size: 12px;
+  color: var(--wk-cream-dim);
+  opacity: 0.85;
+}
+
+.wk-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--wk-cream-dim);
+  display: inline-block;
+}
+
+.wk-avatar {
+  border-radius: 9px;
+  font-family: var(--wk-sans, "Inter Tight", system-ui, sans-serif);
+  font-weight: 700;
+  font-size: 14px;
+  width: 32px;
+  height: 32px;
+}
+
+.wk-avatar--sm {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+  border-radius: 7px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.wk-avatar--me {
+  background: var(--wk-cream);
+  color: var(--wk-teal-deep);
+}
+
+.wk-rail__err {
+  font-family: var(--wk-mono);
+  font-size: 11px;
+  color: var(--wk-amber);
+  padding: 6px 4px;
+}
+
+.wk-connect__count {
+  font-family: var(--wk-mono);
+  font-size: 11px;
+  color: var(--wk-cream-dim);
+  border: 1px solid var(--wk-line);
+  padding: 1px 6px;
+}
+
+.wk-pane__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.wk-select--sm {
+  padding: 7px 9px;
+  font-size: 11.5px;
+  max-width: 260px;
+}
+
+/* thread */
+
+.wk-thread {
+  padding: 22px 26px 8px;
+  gap: 4px;
+}
+
+.wk-job {
+  max-width: 640px;
+  margin: 2px auto 22px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--wk-cream-dim);
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--wk-line-soft);
+}
+
+.wk-empty {
+  text-align: center;
+  font-size: 13px;
+  color: var(--wk-cream-dim);
+  margin: 28px 0;
+}
+
+.wk-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 760px;
+  margin: 0 auto 14px;
+  width: 100%;
+}
+
+.wk-row-agent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.wk-row-me {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.wk-bubble {
+  border: none;
+  border-radius: 14px;
+  background: rgba(238, 229, 228, 0.06);
+  padding: 13px 16px;
+  font-size: 14.5px;
+  line-height: 1.62;
+  max-width: 640px;
+}
+
+.wk-bubble--me {
+  background: rgba(255, 180, 58, 0.14);
+  color: #ffe9c4;
+  border-radius: 14px 14px 4px 14px;
+}
+
+.wk-row-agent .wk-bubble {
+  border-radius: 14px 14px 14px 4px;
+}
+
+.wk-stamp {
+  font-family: var(--wk-mono);
+  font-size: 10.5px;
+  color: var(--wk-cream-dim);
+  opacity: 0.7;
+  padding-left: 34px;
+}
+
+.wk-day {
+  margin: 18px 0 12px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+/* composer */
+
+.wk-composer {
+  gap: 12px;
+  align-items: center;
+  padding: 16px 26px 22px;
+}
+
+.wk-composer__input {
+  border-radius: 14px;
+  min-height: 48px;
+  padding: 14px 16px;
+  font-size: 14.5px;
+  background: rgba(238, 229, 228, 0.06);
+}
+
+.wk-send {
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  font-size: 17px;
+}
+
+/* modal */
+
+.wk-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 22, 28, 0.74);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 60;
+}
+
+.wk-modal__card {
+  width: min(560px, 100%);
+  background: #0a3a49;
+  border: 1px solid var(--wk-line);
+  padding: 24px;
+  border-radius: 14px;
+}
+
+.wk-modal__card h3 {
+  font-family: var(--wk-slab);
+  font-size: 22px;
+  margin: 0 0 16px;
+}
+
+.wk-form {
+  display: grid;
+  gap: 10px;
+}
+
+.wk-form__row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.wk-modal .wk-input,
+.wk-modal .wk-textarea,
+.wk-modal .wk-select {
+  border-radius: 10px;
+  background: rgba(4, 22, 28, 0.45);
+}
