@@ -190,7 +190,12 @@ export async function composioExecute(
     const text = await response.text();
 
     if (!response.ok) {
-      return { ok: false, observation: `Connector rejected the call (${response.status}).` };
+      // No status code: a model handed one writes about the status code. The usual cause is that
+      // the owner has not connected this app yet, so say that.
+      return {
+        ok: false,
+        observation: "This app did not accept the request. It is probably not connected yet; the owner can connect it under Connect apps.",
+      };
     }
 
     const body = JSON.parse(text) as { data?: unknown; error?: string | null; successful?: boolean };
