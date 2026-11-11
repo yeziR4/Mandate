@@ -48,6 +48,14 @@ interface AgentRun {
   costUsd: number | null;
   ok: boolean;
   error?: string;
+  /** What the run leaned on: "fetch", "code", "mcp:deepwiki", "web search", an app name. */
+  used?: string[];
+  code?: Array<{ source: string; output: string }>;
+  servedBy?: { provider: string | null; fallback: boolean };
+  /** Verdict from the sentinel, a second model that only decides whether this needs attention. */
+  alert?: boolean;
+  headline?: string;
+  sentinelModel?: string;
 }
 
 interface Connector {
@@ -71,11 +79,12 @@ interface Agent {
   runs: AgentRun[];
   /** Apps this agent may use. Absent on agents made before agents chose their apps. */
   connectors?: string[];
-  custom?: Array<{ name: string; url: string; description: string; secured: boolean }>;
+  custom?: Array<{ kind?: "api" | "mcp"; name: string; url: string; description: string; secured: boolean }>;
 }
 
 /** An API the visitor is attaching while creating an agent. */
 interface CustomDraft {
+  kind: "api" | "mcp";
   name: string;
   url: string;
   description: string;
@@ -83,7 +92,7 @@ interface CustomDraft {
   headerValue: string;
 }
 
-const BLANK_CUSTOM: CustomDraft = { name: "", url: "", description: "", headerName: "", headerValue: "" };
+const BLANK_CUSTOM: CustomDraft = { kind: "api", name: "", url: "", description: "", headerName: "", headerValue: "" };
 
 const BLANK_AGENT = {
   name: "",
@@ -138,6 +147,16 @@ const compact = (value: number) =>
     : value >= 1000
       ? `${(value / 1000).toFixed(1)}k`
       : String(value);
+
+/** How one thing a run leaned on reads on its receipt. */
+function usedLabel(entry: string) {
+  if (entry === "fetch" || entry === "web fetch") return "read the web";
+  if (entry === "web search") return "searched the web";
+  if (entry === "code") return "ran code";
+  if (entry.startsWith("mcp:")) return `MCP ${DOT} ${entry.slice(4)}`;
+  if (entry === "your API") return "your API";
+  return entry;
+}
 
 /** The run's text without the internal tool preamble. */
 const spoken = (output: string) => output.replace(/^fetched:[^\n]*\n*/m, "").trim();
@@ -468,11 +487,12 @@ function Meter({ agent, models }: { agent: Agent; models: GatewayModel[] }) {
   const seconds = runs.length ? runs.reduce((sum, run) => sum + run.ms, 0) / runs.length / 1000 : 0;
   const perDay = average * (1440 / agent.everyMinutes);
   const model = models.find((entry) => entry.id === agent.model);
+  const sentinel = agent.runs.find((run) => run.sentinelModel)?.sentinelModel;
 
   return (
     <aside className="wk-meter" aria-label="Cost meter">
       <div className="wk-meter__block">
-        <div className="wk-label">Metered {DOT} last {runs.length} runs</div>
+        <div className="wk-label">Metered {DOT} {runs.length === 1 ? "last run" : `last ${runs.length} runs`}</div>
         <div className="wk-meter__total">{money(total)}</div>
         <div className="wk-bars" role="img" aria-label="Cost of each recent run">
           {runs.length === 0 && <span className="wk-bars__empty">No runs yet</span>}
@@ -528,6 +548,16 @@ function Meter({ agent, models }: { agent: Agent; models: GatewayModel[] }) {
         </div>
       </div>
 
+      {sentinel && (
+        <div className="wk-meter__block">
+          <div className="wk-label">Checked by</div>
+          <div className="wk-meter__model">{shortModel(sentinel)}</div>
+          <div className="wk-meter__price">
+            A second model reads each scheduled report and decides whether to flag it.
+          </div>
+        </div>
+      )}
+
       <p className="wk-meter__note">
         Every call goes through Otari. Costs are computed from its price list, not estimated.
       </p>
@@ -550,9 +580,24 @@ const STARTERS = [
     connectors: ["gmail"],
   },
   {
-    name: "Hiring scout",
-    task: "Look at the newest Hacker News hiring posts and list any senior engineering roles that are remote.",
+    name: "Ratio maths",
+    task: "Fetch the BTC and ETH prices in USD, then use code to work out how many ETH one BTC buys.",
+    everyMinutes: 60,
+  },
+  {
+    name: "Repo brief",
+    task: "Using the DeepWiki connector, explain in two sentences what the mozilla-ai/any-llm repository is for.",
     everyMinutes: 1440,
+    custom: [
+      {
+        kind: "mcp" as const,
+        name: "DeepWiki",
+        url: "https://mcp.deepwiki.com/mcp",
+        description: "Answers questions about public GitHub repositories.",
+        headerName: "",
+        headerValue: "",
+      },
+    ],
   },
 ];
 
@@ -687,11 +732,12 @@ export default function Wick() {
       kind: "watch",
       connectors: newAgent.connectors,
       custom: newAgent.custom.map((api) => ({
+        kind: api.kind,
         name: api.name.trim(),
         url: api.url.trim(),
         description: api.description.trim(),
-        ...(api.headerName.trim() && api.headerValue.trim()
-          ? { header: { name: api.headerName.trim(), value: api.headerValue.trim() } }
+        ...(api.headerValue.trim() && (api.kind === "mcp" || api.headerName.trim())
+          ? { header: { name: api.headerName.trim() || "Authorization", value: api.headerValue.trim() } }
           : {}),
       })),
     });
@@ -827,8 +873,10 @@ export default function Wick() {
                     </span>
                   </span>
                   <span className="wk-agent__preview">
+                    {last?.alert && <span className="wk-flagdot" title="Flagged for your attention" />}
                     {last
-                      ? spoken(last.output).replace(/[*#]/g, "").replace(/\s+/g, " ").replace(/^- /, "")
+                      ? last.headline ||
+                        spoken(last.output).replace(/[*#]/g, "").replace(/\s+/g, " ").replace(/^- /, "")
                       : `Wakes every ${every(agent.everyMinutes)}`}
                   </span>
                 </span>
@@ -932,7 +980,7 @@ export default function Wick() {
                       ))}
                       {(active.custom ?? []).map((api) => (
                         <span className="wk-chip" data-custom="true" key={api.name} title={api.url}>
-                          {api.name}
+                          {api.kind === "mcp" ? `MCP ${DOT} ${api.name}` : api.name}
                         </span>
                       ))}
                     </div>
@@ -956,7 +1004,7 @@ export default function Wick() {
                         new Date(entry.startedAt).toDateString() !== new Date(previous.startedAt).toDateString();
                       const latest = index === runs.length - 1 && !working;
                       return (
-                        <li key={entry.id} className="wk-entry" data-latest={latest} data-ok={entry.ok}>
+                        <li key={entry.id} className="wk-entry" data-latest={latest} data-ok={entry.ok} data-alert={entry.alert === true}>
                           {newDay && <div className="wk-day">{dayLabel(entry.startedAt)}</div>}
                           {entry.prompt && (
                             <div className="wk-ask">
@@ -967,6 +1015,7 @@ export default function Wick() {
                             <time className="wk-entry__time">{clock(entry.startedAt)}</time>
                             <span className="wk-entry__node" />
                             <div className="wk-entry__body">
+                              {entry.alert && <span className="wk-flag">Flagged for you</span>}
                               {entry.ok ? (
                                 <Report text={spoken(entry.output)} />
                               ) : (
@@ -983,6 +1032,31 @@ export default function Wick() {
                                 </span>
                                 <span>{entry.trigger === "person" ? "you asked" : "on schedule"}</span>
                               </div>
+                              {(entry.used?.length || entry.servedBy?.provider || entry.sentinelModel) && (
+                                <div className="wk-used">
+                                  {(entry.used ?? []).map((item) => (
+                                    <span className="wk-used__tag" key={item} data-kind={item.split(":")[0]}>
+                                      {usedLabel(item)}
+                                    </span>
+                                  ))}
+                                  {entry.servedBy?.provider && (
+                                    <span className="wk-used__note">
+                                      served by {entry.servedBy.provider}
+                                      {entry.servedBy.fallback ? " after a fallback" : ""}
+                                    </span>
+                                  )}
+                                  {entry.sentinelModel && (
+                                    <span className="wk-used__note">checked by {shortModel(entry.sentinelModel)}</span>
+                                  )}
+                                </div>
+                              )}
+                              {entry.code?.map((block, position) => (
+                                <details className="wk-code" key={position}>
+                                  <summary>Code it ran</summary>
+                                  <pre>{block.source}</pre>
+                                  {block.output && <pre className="wk-code__out">{block.output}</pre>}
+                                </details>
+                              ))}
                             </div>
                           </div>
                         </li>
@@ -1151,7 +1225,7 @@ export default function Wick() {
                       key={starter.name}
                       type="button"
                       className="wk-starter"
-                      onClick={() => setNewAgent({ ...newAgent, connectors: [], ...starter })}
+                      onClick={() => setNewAgent({ ...newAgent, connectors: [], custom: [], ...starter })}
                     >
                       {starter.name}
                     </button>
@@ -1265,7 +1339,21 @@ export default function Wick() {
 
                   {customDraft ? (
                     <div className="wk-custom">
-                      <div className="wk-custom__title">Your own API</div>
+                      <div className="wk-custom__title">Your own connector</div>
+                      <div className="wk-seg" role="radiogroup" aria-label="Connector type">
+                        {(["api", "mcp"] as const).map((kind) => (
+                          <button
+                            key={kind}
+                            type="button"
+                            role="radio"
+                            aria-checked={customDraft.kind === kind}
+                            className="wk-seg__opt"
+                            onClick={() => setCustomDraft({ ...customDraft, kind })}
+                          >
+                            {kind === "api" ? "HTTPS API" : "MCP server"}
+                          </button>
+                        ))}
+                      </div>
                       <div className="wk-custom__grid">
                         <label className="wk-field">
                           <span className="wk-label">Name</span>
@@ -1279,11 +1367,11 @@ export default function Wick() {
                           />
                         </label>
                         <label className="wk-field">
-                          <span className="wk-label">Base address</span>
+                          <span className="wk-label">{customDraft.kind === "mcp" ? "Server address" : "Base address"}</span>
                           <input
                             id="wk-api-url"
                             className="wk-input"
-                            placeholder="https://api.example.com/v1"
+                            placeholder={customDraft.kind === "mcp" ? "https://mcp.example.com/mcp" : "https://api.example.com/v1"}
                             value={customDraft.url}
                             onChange={(event) => setCustomDraft({ ...customDraft, url: event.target.value })}
                           />
@@ -1299,8 +1387,8 @@ export default function Wick() {
                           onChange={(event) => setCustomDraft({ ...customDraft, description: event.target.value })}
                         />
                       </label>
-                      <div className="wk-custom__grid">
-                        <label className="wk-field">
+                      <div className="wk-custom__grid" data-kind={customDraft.kind}>
+                        <label className="wk-field" hidden={customDraft.kind === "mcp"}>
                           <span className="wk-label">Header name (optional)</span>
                           <input
                             id="wk-api-header"
@@ -1311,7 +1399,9 @@ export default function Wick() {
                           />
                         </label>
                         <label className="wk-field">
-                          <span className="wk-label">Header value</span>
+                          <span className="wk-label">
+                            {customDraft.kind === "mcp" ? "Access token (optional)" : "Header value"}
+                          </span>
                           <input
                             id="wk-api-secret"
                             type="password"
@@ -1324,8 +1414,9 @@ export default function Wick() {
                         </label>
                       </div>
                       <p className="wk-custom__note">
-                        Read-only: the agent can fetch any path under this address. A header is kept on the server
-                        and never shown again.
+                        {customDraft.kind === "mcp"
+                          ? "Otari connects to the server itself and lets the agent call its tools. A token is kept on the server and never shown again."
+                          : "Read-only: the agent can fetch any path under this address. A header is kept on the server and never shown again."}
                       </p>
                       <div className="wk-dialog__foot">
                         <button type="button" className="wk-btn" onClick={() => setCustomDraft(null)}>
@@ -1340,7 +1431,7 @@ export default function Wick() {
                             setCustomDraft(null);
                           }}
                         >
-                          Add this API
+                          Add connector
                         </button>
                       </div>
                     </div>
@@ -1392,7 +1483,7 @@ export default function Wick() {
                         onClick={() => setCustomDraft(BLANK_CUSTOM)}
                       >
                         {Icon.plus}
-                        Add your own API
+                        Add your own API or MCP server
                       </button>
                     </>
                   )}
