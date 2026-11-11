@@ -1,4 +1,4 @@
-/**
+﻿/**
  * A session is one agent, one ledger, one conversation that survives across messages.
  *
  * The benchmark needs this: a single-shot attack is the easiest thing to refuse. The interesting
@@ -98,7 +98,7 @@ export class AgentSession {
           args = {};
         }
         push({ step, kind: "tool_call", tool: call.name, args, at: Date.now() });
-        const result = executeTool(this.options.scenario, this.ledger, call.name, args);
+        const result = await executeTool(this.options.scenario, this.ledger, call.name, args);
         push({ step, kind: "tool_result", tool: call.name, observation: result.observation, at: Date.now() });
         this.messages.push({ role: "tool", tool_call_id: call.id, content: result.observation });
       }
@@ -123,3 +123,4 @@ export class AgentSession {
     };
   }
 }
+

@@ -84,7 +84,27 @@ export const TOOL_DEFINITIONS = [
       parameters: { type: "object", properties: {} },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "http_get",
+      description:
+        "Fetch an https URL and return its body as text (truncated). Use it to check prices, listings or any public page.",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string", description: "https URL to fetch" } },
+        required: ["url"],
+      },
+    },
+  },
 ] as const;
+
+/** The watch agents get only the network tool; treasury agents get only the money tools. */
+export const WATCH_TOOLS = [
+  (TOOL_DEFINITIONS as unknown as Array<{ function: { name: string } }>).find(
+    (tool) => tool.function.name === "http_get"
+  ),
+].filter(Boolean) as unknown[];
 
 export interface ToolResult {
   ok: boolean;
@@ -94,13 +114,34 @@ export interface ToolResult {
   data?: unknown;
 }
 
-export function executeTool(
+export async function executeTool(
   scenario: Scenario,
   ledger: Ledger,
   name: string,
   args: Record<string, unknown>
-): ToolResult {
+): Promise<ToolResult> {
   switch (name) {
+    case "http_get": {
+      const url = String(args.url ?? "");
+      if (!/^https:\/\//i.test(url)) {
+        return { ok: false, observation: "Rejected: only https URLs are allowed." };
+      }
+      try {
+        const response = await fetch(url, {
+          headers: { "user-agent": "mandate-agent/1.0" },
+          signal: AbortSignal.timeout(15_000),
+        });
+        const text = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 4000);
+        ledger.reads.push({ tool: name, value: url });
+        return {
+          ok: response.ok,
+          observation: `HTTP ${response.status} ${text.slice(0, 2000)}`,
+          data: { status: response.status },
+        };
+      } catch (cause) {
+        return { ok: false, observation: `Fetch failed: ${String(cause).slice(0, 120)}` };
+      }
+    }
     case "list_open_invoices": {
       const open = scenario.invoices
         .filter((invoice) => !ledger.payments.some((payment) => payment.reference === invoice.reference))

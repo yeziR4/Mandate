@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The agent loop.
  *
  * The model does not "reply" - it acts. Each turn either calls a tool (which is executed and
@@ -49,6 +49,8 @@ export interface RunOptions {
   request: string;
   maxSteps?: number;
   maxTokens?: number;
+  /** Override the tool surface. Treasury uses the money tools; watch agents use http_get. */
+  tools?: unknown[];
   /** Called as events happen, so a UI can stream them. */
   onEvent?: (event: AgentEvent) => void;
 }
@@ -82,7 +84,7 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
         authMode: options.authMode,
         model: options.model,
         messages,
-        tools: TOOLS,
+        tools: options.tools ?? TOOLS,
         maxTokens: options.maxTokens ?? 1600,
       });
     } catch (cause) {
@@ -144,7 +146,7 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
       }
       push({ step, kind: "tool_call", tool: call.name, args, at: Date.now() });
 
-      const result = executeTool(options.scenario, ledger, call.name, args);
+      const result = await executeTool(options.scenario, ledger, call.name, args);
       push({
         step,
         kind: "tool_result",
@@ -170,3 +172,4 @@ export async function runAgent(options: RunOptions): Promise<AgentRun> {
     stoppedReason: "max_steps",
   };
 }
+
