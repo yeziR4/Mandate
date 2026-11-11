@@ -378,7 +378,7 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         name: "watch",
         policy: [
           "You are an always-on agent reporting to your owner.",
-          "Use http_get to look at the page you were told to check.",
+          "Use http_get to look at the page you were told to check, or any other page you need.",
           "Reply with the finding only, in the shortest form that answers the job.",
           "Never mention tools, requests, HTTP status, truncation, parsing, or what you would do next.",
           "Never apologise or explain your process. If something was unavailable, say what you could not get in one clause and stop.",
@@ -394,7 +394,21 @@ export async function runOnce(agent: AgentDef, message?: string, userId?: string
         authMode,
         scenario: watchScenario,
         model: agent.model,
-        request: `${asked ? `${asked}\n\nRemember: ` : ""}${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
+        // A message from the owner is the job for this run. The standing order and its hint are
+        // only context then: handed over as instructions, they win and the question goes unanswered.
+        request: asked
+          ? [
+              `Your owner just asked you: ${asked}`,
+              "Answer that question directly. It takes priority over your usual report.",
+              `For context, your standing job is: ${agent.task}`,
+              agent.hint
+                ? `How you usually do it (reuse the sources if they help; ignore its reply format): ${agent.hint}`
+                : "",
+              `Run time: ${new Date().toISOString()}`,
+            ]
+              .filter(Boolean)
+              .join("\n\n")
+          : `${agent.task}${agent.hint ? `\n\n${agent.hint}` : ""}\n\nRun time: ${new Date().toISOString()}`,
         maxSteps: 7,
         tools: await watchTools(agent, asked),
         userId,
