@@ -431,8 +431,13 @@ async function prices(): Promise<Map<string, { in: number; out: number }>> {
  * setting in Otari; once it is switched on there, PUP_OTARI_WEB=1 hands them to every agent.
  */
 function gatewayTools(): unknown[] {
+  // Otari bills each gateway tool call separately from tokens, at roughly a cent a call. Search and
+  // code are worth that. Plain page reads are not: "search" keeps Otari's search and leaves fetching
+  // to the keeper, "1" hands both to the gateway.
   const tools: unknown[] = [{ type: "otari_code_execution" }];
-  if (process.env.PUP_OTARI_WEB === "1") tools.push({ type: "otari_web_search" }, { type: "otari_web_fetch" });
+  const web = process.env.PUP_OTARI_WEB;
+  if (web === "1" || web === "search") tools.push({ type: "otari_web_search" });
+  if (web === "1") tools.push({ type: "otari_web_fetch" });
   return tools;
 }
 
@@ -512,6 +517,8 @@ function gatewayExtras(agent: AgentDef): Record<string, unknown> {
 function friendlyError(code: string | null | undefined, raw: string): string {
   if (code === "budget_exceeded")
     return "This visitor's spending limit has been reached, so the run was stopped before it cost anything.";
+  if (code === "insufficient_funds")
+    return "This demo's gateway credit has run out, so the run was refused. Nothing is wrong with the agent; it will work again once credit is added.";
   if (code === "guardrail_violation") return "A guardrail blocked this request before it reached the model.";
   if (code === "user_blocked") return "This visitor is blocked from running agents.";
   return raw;

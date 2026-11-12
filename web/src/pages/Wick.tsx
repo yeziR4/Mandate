@@ -563,7 +563,7 @@ function Meter({ agent, models }: { agent: Agent; models: GatewayModel[] }) {
       )}
 
       <p className="wk-meter__note">
-        Every call goes through Otari. Costs are computed from its price list, not estimated.
+        Every call goes through Otari. Model cost is computed from its price list. Web search and code runs are billed per call on top and are not included here.
       </p>
     </aside>
   );
