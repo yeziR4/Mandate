@@ -1,0 +1,14 @@
+{
+  "id": "hyezir4/lexsi-tiny-aya-policy-safety-baseline-vs-tuned",
+  "title": "Lexsi tiny-aya policy safety baseline vs tuned",
+  "code_file": "train.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
