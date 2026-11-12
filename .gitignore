@@ -36,3 +36,7 @@ t2.json
 
 data/runs.json
 
+
+lexsi/models/
+lexsi/bin/
+

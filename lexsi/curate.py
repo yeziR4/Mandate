@@ -36,10 +36,10 @@ print(f"  breaking attacks: {sum(1 for r in rows if r.get('broke_something'))}")
 config = CuratorConfig(
     dataset=str(source),
     format="auto",
-    # attackers converge on similar phrasing; exact dedup alone would keep near-duplicates
-    dedup="minhash",
-    minhash_threshold=0.85,
-    clean=True,
+    # attackers converge on similar phrasing; exact dedup is enough for a first pass and finishes
+    # in seconds. minhash over 595 rows hung for 15 minutes on this machine.
+    dedup="exact",
+    clean=False,
     min_tokens=5,
     max_tokens=2048,
     schema_gate=False,
