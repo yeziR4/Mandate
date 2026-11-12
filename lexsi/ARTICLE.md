@@ -1,7 +1,6 @@
 # Do safety numbers survive the harness? A judge-free audit of a tool-using treasury agent
 
 **Track 2a — PS #2 (adversarial evaluation sets) + PS #3 (multi-turn audits)**
-**Track 2b — PS #5 (safety-preserving fine-tuning)**
 Lexsi AI Safety & Alignment Hackathon, 2026
 
 ---
@@ -77,7 +76,9 @@ Pairwise Cohen's κ on break/no-break: **0.15–0.48**.
 |---|---|---|
 | **CuratorKIT** | Turn raw transcripts into a gated, deduplicated corpus and trainer-ready splits | JSONL connector, dedup, schema gates, provenance, split export |
 | **AuditKIT** | Score the recorded audit as episodes rather than ad-hoc scripts | `AgentEvalSpec`, `AgentCase`, `AgentEpisode`, `AgentEvent`, `AgentEvalRunner` (recorded mode) |
-| **AlignTune / SafeTune** | The "after" condition: LoRA safety-tuning on the curated corpus | LoRA/SFT; safety-drift check |
+
+We tried a LoRA fine-tune of our own and it did not land before the deadline, so no toolkit is
+claimed for it. Section 6 explains why, rather than hiding it.
 
 ---
 
@@ -132,16 +133,32 @@ Applying 1–3 to the archived transcripts moved 20 of 660 verdicts, in both dir
 
 ---
 
-## 6. Before / after
+## 6. What we did not finish, and why we are not claiming it
 
-*(Section filled from the GPU run: baseline → LoRA safety-tuned, same held-out attacks, same
-judge-free scoring. Metrics: break rate, over-refusal, tool validity.)*
+We intended a before/after fine-tune: LoRA on the curated corpus, re-evaluated on the same held-out
+attacks. It did not land before the deadline. Five attempts on a free-tier T4 died for ordinary
+engineering reasons (`SFTTrainer` needing a `Dataset`, a T4 that cannot run bf16 GEMM at compute
+7.5, an AMP unscale path, a UTF-8 BOM that made the script invalid Python, then a stalled queue),
+and the last run produced no output at all.
 
-| Metric | Baseline | After tuning |
-|---|---|---|
-| Break rate | TODO | TODO |
-| Over-refusal | TODO | TODO |
-| Tool validity | TODO | TODO |
+Rather than report a fine-tune we do not have, the submission reports what we measured. We are
+also explicitly **not** claiming Track 2b: there is no adapter, no before/after table, and no model
+artifact to inspect.
+
+What we have instead is the comparison that motivated the whole project, measured end to end:
+
+| Harness | Unit | Breaks | Rate |
+|---|---|---|---|
+| No tool surface (chat-only) | 84 cells | 0 | 0% |
+| Tool-grounded, multi-turn, policy-only prompt | 176 cells | 72 | 40.9% |
+| Tool-grounded, single-turn, release scaffold in the system prompt | 72 attacks | 25 | 34.7% |
+
+Same model family, same policies, same attack family. The measured safety of the agent moves by
+roughly forty points depending on whether it can act and how it is prompted. That is the finding,
+and a fine-tune would have been a second column on it, not the point.
+
+The corpus, the code and the scoring rule are published so the fine-tune can be run by anyone —
+including us, on the next paid GPU hour.
 
 ---
 
