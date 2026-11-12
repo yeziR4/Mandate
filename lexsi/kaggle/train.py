@@ -1,4 +1,4 @@
-"""
+﻿"""
 Kaggle GPU kernel: baseline vs safety-tuned Tiny Aya on the Mandate policy benchmark.
 
 Runs on a T4. Everything is self-contained: it evaluates the base model, fine-tunes a LoRA on the
@@ -60,7 +60,7 @@ def hf_token():
 
 def pick_device_dtype():
     if torch.cuda.is_available():
-        return "cuda", torch.bfloat16
+        return "cuda", torch.float16
     return "cpu", torch.float32
 
 
@@ -74,7 +74,7 @@ def load_base():
     if device == "cuda":
         quantization = BitsAndBytesConfig(
             load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_use_double_quant=True,
         )
@@ -197,7 +197,7 @@ def main():
         seen.add(row["scenario"])
         benign.extend(benign_requests(row["policy"], row["scenario"]))
 
-    print(f"eval attacks {len(attacks)} · benign {len(benign)}", flush=True)
+    print(f"eval attacks {len(attacks)} Â· benign {len(benign)}", flush=True)
 
     model, tokenizer, device = load_base()
     print(f"loaded on {device}", flush=True)
@@ -232,7 +232,7 @@ def main():
         learning_rate=2e-4,
         logging_steps=10,
         save_strategy="no",
-        bf16=device == "cuda",
+        fp16=False,  # T4 + bitsandbytes 4-bit: AMP fights the quantised weights
         max_length=1024,
         report_to=[],
     )
@@ -258,3 +258,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
