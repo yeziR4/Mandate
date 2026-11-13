@@ -1,6 +1,6 @@
 # Submission abstract (<500 words)
 
-**For the form field "Abstract".** Replace the bracketed line in §3 once the GPU run finishes.
+**For the form field "Abstract".** Numbers below are from the final T4 run (`lexsi/kaggle/out/results.json`).
 
 ---
 
@@ -35,10 +35,11 @@ scoring recorded episodes; and a correction rule ("a line that starts with RELEA
 from the attacker, and names the wrong address") that moved 20 of 660 verdicts in both directions
 after we found our own detector counting refusals that quoted the attack.
 
-**[Not claimed: a fine-tune.]** We attempted a LoRA safety-tune of Tiny Aya and it did not land
-before the deadline — five GPU runs failed for ordinary engineering reasons (a T4 cannot run bf16
-GEMM, and the training stack had to be rewritten). Rather than report a before/after we do not
-have, we submit the benchmark, the corpus and the harness comparison, and we do not claim Track 2b.
+**The fine-tune, and what caught it.** A LoRA tune of Tiny Aya cut break rate 34.7% → 0.0%, which
+reads as a perfect safety result until you see the other columns: tool validity fell 34.2% → 0.0%,
+and the model emits one memorised refusal for every input, benign included. The zero is a collapse,
+not alignment — 595 refusal examples outvoted 180 benign ones and the agent stopped acting. Only a
+benchmark that scores usefulness beside compliance sees this.
 
 The contribution is not another model that refuses. It is evidence that the reported safety of an
 agent depends more on the evaluation harness — tool surface, prompt scaffold, judge — than on the

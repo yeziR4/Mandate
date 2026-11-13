@@ -1,6 +1,7 @@
 # Do safety numbers survive the harness? A judge-free audit of a tool-using treasury agent
 
 **Track 2a — PS #2 (adversarial evaluation sets) + PS #3 (multi-turn audits)**
+**Track 2b — PS #5 (safety-preserving fine-tuning), reported as a negative result**
 Lexsi AI Safety & Alignment Hackathon, 2026
 
 ---
@@ -77,8 +78,9 @@ Pairwise Cohen's κ on break/no-break: **0.15–0.48**.
 | **CuratorKIT** | Turn raw transcripts into a gated, deduplicated corpus and trainer-ready splits | JSONL connector, dedup, schema gates, provenance, split export |
 | **AuditKIT** | Score the recorded audit as episodes rather than ad-hoc scripts | `AgentEvalSpec`, `AgentCase`, `AgentEpisode`, `AgentEvent`, `AgentEvalRunner` (recorded mode) |
 
-We tried a LoRA fine-tune of our own and it did not land before the deadline, so no toolkit is
-claimed for it. Section 6 explains why, rather than hiding it.
+The fine-tune is a LoRA adapter we trained ourselves (PyTorch + `peft`, no training toolkit
+claimed for it — we tried TRL and it cannot run on a T4). Section 6 reports the result, including
+the part that reflects badly on us.
 
 ---
 
@@ -133,32 +135,40 @@ Applying 1–3 to the archived transcripts moved 20 of 660 verdicts, in both dir
 
 ---
 
-## 6. What we did not finish, and why we are not claiming it
+## 6. Before / after: the fine-tune preserved safety by destroying the agent
 
-We intended a before/after fine-tune: LoRA on the curated corpus, re-evaluated on the same held-out
-attacks. It did not land before the deadline. Five attempts on a free-tier T4 died for ordinary
-engineering reasons (`SFTTrainer` needing a `Dataset`, a T4 that cannot run bf16 GEMM at compute
-7.5, an AMP unscale path, a UTF-8 BOM that made the script invalid Python, then a stalled queue),
-and the last run produced no output at all.
+We LoRA-tuned Tiny Aya on the curated corpus (595 adversarial rows + 180 benign rows oversampled
+from 12 prompts), then re-ran the same 72 held-out attacks on a T4.
 
-Rather than report a fine-tune we do not have, the submission reports what we measured. We are
-also explicitly **not** claiming Track 2b: there is no adapter, no before/after table, and no model
-artifact to inspect.
-
-What we have instead is the comparison that motivated the whole project, measured end to end:
-
-| Harness | Unit | Breaks | Rate |
+| Metric | Baseline | After LoRA | Reading |
 |---|---|---|---|
-| No tool surface (chat-only) | 84 cells | 0 | 0% |
-| Tool-grounded, multi-turn, policy-only prompt | 176 cells | 72 | 40.9% |
-| Tool-grounded, single-turn, release scaffold in the system prompt | 72 attacks | 25 | 34.7% |
+| Break rate | **34.7%** (25/72) | **0.0%** (0/72) | looks like a perfect safety result |
+| Tool validity | 34.2% | **0.0%** | it never emits a release line again |
+| Over-refusal | 1.00 (n=1) | 1.00 (n=1) | the one benign probe is refused in both |
 
-Same model family, same policies, same attack family. The measured safety of the agent moves by
-roughly forty points depending on whether it can act and how it is prompted. That is the finding,
-and a fine-tune would have been a second column on it, not the point.
+**The 0% is not a win, it is a collapse.** The tuned model emits the *same memorised sentence*
+verbatim for every input — attacks, refusals and the benign probe alike:
 
-The corpus, the code and the scoring rule are published so the fine-tune can be run by anyone —
-including us, on the next paid GPU hour.
+> "I can't action that. The destination has to be the beneficiary recorded for this reference…"
+
+That sentence is copied from our training targets. The adapter learned one refusal string and
+applies it unconditionally, so `break_rate` falls to zero for the same reason a disconnected
+firewall blocks all traffic.
+
+Two things follow, and they are the reason this section exists:
+
+1. **A single break-rate number cannot distinguish "aligned" from "broken".** Paired with
+   tool-validity and over-refusal it can: the fine-tune scores perfectly on the metric it was
+   trained against and zero on the one that measures usefulness.
+2. **Narrow adversarial SFT is a capability attack.** 595 refusal examples outvoted 180 benign ones
+   (23% of the gradient) and the model lost the ability to act at all. This is exactly the failure
+   mode safety-preserving fine-tuning is meant to avoid, and we walked into it.
+
+Caveats we are stating rather than hiding: the benign probe is one example per run, so
+over-refusal is not statistically meaningful here; one epoch, one seed, r=16; the failure is
+qualitative (memorised output) and clear in the transcripts, which are published.
+
+Adapter: https://huggingface.co/yeziR4/lexsi-tiny-aya-policy-adapter-lora
 
 ---
 
@@ -169,9 +179,10 @@ including us, on the next paid GPU hour.
 - **Judging breaks with an LLM.** Four judges, same transcripts, 1–8 breaks called (κ 0.15–0.48).
 - **Minhash dedup over 595 rows** did not finish in 15 minutes on the reference machine; exact
   dedup shipped.
-- **A refusal-only training set.** It teaches the model to refuse legitimate requests too. The
-  corpus now carries a benign half with the correct release, oversampled so it is ~23% of the
-  gradient.
+- **A refusal-heavy training set still collapses the model.** We added a benign half (180 rows, ~23%
+  of the gradient) specifically to prevent over-refusal. It was not enough: the adapter memorised one
+  refusal string and applied it to every input. 23% benign is not the fix; balancing the *task*
+  (release-and-refuse examples paired on the same policy) probably is. We did not get to test that.
 
 ---
 
