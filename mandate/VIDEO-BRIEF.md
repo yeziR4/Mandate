@@ -1,8 +1,6 @@
 # Video brief — Mandate, for Metis Rise
 
-For the video agent. Everything here is checked against the live contract. Anything marked
-`[[NEEDS REAL TX]]` must be replaced with a real on-chain transaction before publishing — do not
-invent a hash, an address, or a payout.
+For the video agent. Everything here is checked against the live contract, and the real attempt, the real verdict and certificate #1 already exist — see `mandate/PROOF-PACK.md` before writing any copy. Do not invent a hash, an address, or a payout.
 
 ---
 
@@ -70,7 +68,7 @@ footage of a bank, not a startup promo.
 
 - 0–4s: "Ten AI agents. Real money." (ten purses)
 - 4–9s: "One written rule each." (policy text)
-- 9–13s: "Break one, take its purse." (`[[NEEDS REAL TX]]` payout moment — 2s of the explorer)
+- 9–13s: "Break one, take its purse." (certificate #1 on our own certificate page, 2s)
 - 13–15s: URL + contract.
 
 ## 6. What must be exact

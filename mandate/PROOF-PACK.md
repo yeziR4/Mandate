@@ -1,7 +1,7 @@
 # Proof pack — the real transaction and the real certificate
 
 Everything here is read off Metis Andromeda. Nothing is illustrative. Give this to the video agent
-alongside `VIDEO-BRIEF.md`; it replaces the `[[NEEDS REAL TX]]` placeholder.
+alongside `VIDEO-BRIEF.md`; the real transaction and the real certificate the video is built on.
 
 ---
 
