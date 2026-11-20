@@ -49,11 +49,11 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
           .catch(() => null);
 
         const entry = (health?.models ?? []).find(
-          (candidate: { index: number; mock: boolean }) => candidate.index === model.id
+          (candidate: { index: number; mock?: boolean; available?: boolean }) => candidate.index === model.id
         );
-        if (entry?.mock) {
+        if (entry && (entry.available === false || entry.mock)) {
           setError(
-            `${model.label} has no judge configured yet. Nothing was committed and no gas was spent — try one of the models marked live.`
+            `${model.label} is offline right now — the keeper has no working model behind it. Nothing was committed and no gas was spent.`
           );
           return;
         }
