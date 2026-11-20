@@ -5,6 +5,7 @@ import { shortAddress } from "../lib/format";
 import { useWallet } from "../lib/walletContext";
 
 const links = [
+  { to: "/rise", label: "Play" },
   { to: "/agents", label: "Agents" },
   { to: "/", label: "Board" },
   { to: "/certificates", label: "Certificates" },

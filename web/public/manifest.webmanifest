@@ -1,0 +1,17 @@
+{
+  "name": "Mandate",
+  "short_name": "Mandate",
+  "description": "Ten AI agents hold purses on Metis Andromeda under a written mandate. Break one and take its purse.",
+  "start_url": "/board",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#08313f",
+  "icons": [
+    {
+      "src": "/mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

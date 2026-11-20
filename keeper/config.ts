@@ -29,6 +29,12 @@ export interface ModelConfig {
   authMode: "bearer" | "otari";
   model: string;
   mock: boolean;
+  /**
+   * Whether this agent can actually be judged right now. False when there is no provider, when the
+   * gateway has no model id for it, or when it is listed in UNAVAILABLE_MODELS. The board uses this
+   * to keep users from spending gas on an attempt that can never resolve.
+   */
+  available: boolean;
 }
 
 function loadModels(): ModelConfig[] {
@@ -45,16 +51,29 @@ function loadModels(): ModelConfig[] {
   const gatewayBase = env("OTARI_BASE_URL");
   const gatewayKey = env("OTARI_API_KEY");
 
+  // Labels the operator has taken offline by hand - for a gateway that rejects a model id, where
+  // configuration alone cannot tell us the agent is broken.
+  const blockedLabels = new Set(
+    env("UNAVAILABLE_MODELS")
+      .split(",")
+      .map((label) => label.trim())
+      .filter(Boolean)
+  );
+
   return raw.map((entry) => {
     const key = entry.label.toUpperCase().replace(/[^A-Z0-9]/g, "_");
     const baseUrl = gatewayBase || env(`MODEL_${key}_BASE_URL`, entry.baseUrl ?? "");
+    const modelId = env(`MODEL_${key}_NAME`, entry.model || entry.label.toLowerCase());
     return {
       label: entry.label,
       baseUrl,
       apiKey: gatewayBase ? gatewayKey : env(`MODEL_${key}_API_KEY`, entry.apiKey ?? ""),
       authMode: gatewayBase ? "otari" : "bearer",
-      model: env(`MODEL_${key}_NAME`, entry.model ?? entry.label.toLowerCase()),
+      model: modelId,
       mock: baseUrl === "",
+      // A gateway that has no id for this model returns "model is required"; a gateway that
+      // rejects it returns 400. Either way the attempt cannot be judged, so say so up front.
+      available: baseUrl !== "" && modelId !== "" && !blockedLabels.has(entry.label),
     };
   });
 }

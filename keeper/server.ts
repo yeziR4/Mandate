@@ -141,6 +141,7 @@ export function createKeeper() {
     try {
       if (req.method === "GET" && url.pathname === "/health") {
         const mock = config.models.filter((model) => model.mock).map((model) => model.label);
+        const unavailable = config.models.filter((model) => !model.available).map((model) => model.label);
         send(res, 200, {
           ok: true,
           arena: config.arena,
@@ -151,14 +152,16 @@ export function createKeeper() {
           judge: config.judge.baseUrl ? config.judge.model : "heuristic (JUDGE_BASE_URL unset)",
           real: config.models.filter((model) => !model.mock).length,
           mock,
+          unavailable,
           warning:
-            mock.length > 0
-              ? `${mock.length} model(s) have no provider and will be refused at submission: ${mock.join(", ")}`
+            unavailable.length > 0
+              ? `${unavailable.length} model(s) are offline and will be refused before any gas is spent: ${unavailable.join(", ")}`
               : undefined,
           models: config.models.map((model, index) => ({
             index,
             label: model.label,
             mock: model.mock,
+            available: model.available,
           })),
         });
         return;
@@ -422,6 +425,17 @@ async function handleAttempt(req: IncomingMessage, res: ServerResponse) {
   const model = config.models[Number(onchain.model)];
   if (!model) {
     send(res, 400, { error: `no model configured at index ${onchain.model}` });
+    return;
+  }
+
+  // A model that cannot be judged must never be run: the attempt is already on chain by the time
+  // this handler sees it, so a clear refusal here is the difference between "try another agent"
+  // and "your gas bought nothing".
+  if (!model.available && process.env.ALLOW_MOCK !== "true") {
+    send(res, 409, {
+      error: "model_unavailable",
+      message: `${model.label} is offline right now. Nothing was judged and no certificate was issued.`,
+    });
     return;
   }
 

@@ -8,6 +8,7 @@
  * 404s production. This always builds first, so what goes live is the working app.
  */
 import { spawnSync } from "node:child_process";
+import { copyFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,5 +34,10 @@ const run = (command, args, cwd) => {
 
 console.log(`keeper: ${KEEPER_URL}\n`);
 run("npm", ["run", "build"], web);
+
+// Vercel only reads vercel.json from the directory being uploaded. Without this the deploy has no
+// SPA rewrite and every deep link (/board, /certificate/1) 404s while the home page still works.
+copyFileSync(path.join(web, "vercel.json"), path.join(web, "dist", "vercel.json"));
+
 run("npx", ["vercel", "deploy", "dist", "--prod", "--yes"], web);
 console.log("\ndeployed. open the production alias and check it renders.");

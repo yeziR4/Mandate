@@ -100,6 +100,10 @@ export function PrivyWalletProvider({ children }: { children: ReactNode }) {
           accentColor: "#00cfff",
           landingHeader: "Sign in to attempt a purse",
           loginMessage: "X or email. No seed phrase, no extension.",
+          // The wallet approval sheet shows whatever name the dApp advertises. Unset, mobile
+          // wallets fall back to the host or the account name, which reads as a stranger asking
+          // for permission. Name the project explicitly.
+          logo: "/mark.svg",
         },
       }}
     >

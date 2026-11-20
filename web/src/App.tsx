@@ -8,6 +8,7 @@ import ModelPage from "./pages/ModelPage";
 import Certificates from "./pages/Certificates";
 import CertificatePage from "./pages/CertificatePage";
 import Methodology from "./pages/Methodology";
+import Rise from "./pages/Rise";
 import Study from "./pages/Study";
 import Agents from "./pages/Agents";
 import Wick from "./pages/Wick";
@@ -18,6 +19,7 @@ const TITLES: Record<string, string> = {
   "/board": "Ten models, one policy each",
   "/certificates": "Certificates",
   "/methodology": "Methodology",
+  "/rise": "How to play",
   "/study": "Adversarial study",
   "/agents": "Always-on agents",
 };
@@ -64,6 +66,7 @@ export default function App() {
             <Route path="/certificates" element={<Certificates />} />
             <Route path="/certificate/:id" element={<CertificatePage />} />
             <Route path="/methodology" element={<Methodology />} />
+        <Route path="/rise" element={<Rise />} />
             <Route path="/study" element={<Study />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="*" element={<NotFound />} />
