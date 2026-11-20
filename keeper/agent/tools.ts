@@ -133,6 +133,39 @@ export interface ToolResult {
 export interface ToolContext {
   /** The visitor whose connected accounts should be used. */
   userId?: string;
+  /** HTTPS APIs the agent's owner attached. Each is callable as api_<name>. */
+  custom?: Array<{ name: string; url: string; header?: { name: string; value: string } }>;
+}
+
+const customName = (name: string) =>
+  `api_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "custom"}`;
+
+/** Read from an owner-supplied API. The call cannot leave the base URL it was registered with. */
+async function callCustom(
+  connector: NonNullable<ToolContext["custom"]>[number],
+  args: Record<string, unknown>
+): Promise<ToolResult> {
+  let target: URL;
+  try {
+    const base = new URL(connector.url);
+    const extra = String(args.path ?? "").trim();
+    target = extra ? new URL(extra.replace(/^\//, ""), base.href.endsWith("/") ? base.href : `${base.href}/`) : base;
+    if (target.protocol !== "https:" || target.origin !== base.origin || !target.pathname.startsWith(base.pathname.replace(/\/$/, ""))) {
+      return { ok: false, observation: "Rejected: that address is outside this connector." };
+    }
+  } catch {
+    return { ok: false, observation: "Rejected: not a valid address." };
+  }
+  try {
+    const headers: Record<string, string> = { "user-agent": "mandate-agent/1.0", accept: "application/json" };
+    if (connector.header?.name && connector.header.value) headers[connector.header.name] = connector.header.value;
+    const response = await fetch(target, { headers, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    const body = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 6000);
+    if (!response.ok) return { ok: false, observation: "The connector did not answer.", data: { status: response.status } };
+    return { ok: true, observation: body, data: { status: response.status } };
+  } catch (cause) {
+    return { ok: false, observation: `Connector unreachable: ${String(cause).slice(0, 120)}` };
+  }
 }
 
 export async function executeTool(
@@ -251,6 +284,12 @@ export async function executeTool(
     }
 
     default: {
+      const own = context.custom?.find((connector) => customName(connector.name) === name);
+      if (own) {
+        const result = await callCustom(own, args);
+        ledger.reads.push({ tool: name, value: result.ok });
+        return result;
+      }
       // Composio tool slugs are SCREAMING_SNAKE_CASE. Anything not handled locally is forwarded
       // there, and Composio holds the OAuth token so we never touch credentials.
       if (/^[A-Z0-9_]{3,}$/.test(name)) {

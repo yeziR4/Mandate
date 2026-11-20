@@ -56,37 +56,117 @@ function openAiTool(tool: ComposioTool) {
   };
 }
 
-let cache: { at: number; tools: unknown[]; slugs: Set<string> } | null = null;
+/** How many tools an uncurated toolkit contributes. Same reason as CURATED: fewer is better. */
+const UNCURATED_LIMIT = 8;
 
-/** Tool definitions for the configured toolkits, in the shape the model expects. */
-export async function composioTools(): Promise<{ tools: unknown[]; slugs: Set<string> }> {
-  if (!composioConfigured()) return { tools: [], slugs: new Set() };
-  if (cache && Date.now() - cache.at < 5 * 60_000) return cache;
+const toolkitTools = new Map<string, { at: number; tools: ComposioTool[] }>();
 
-  const wanted = new Set(Object.values(CURATED).flat());
-  const tools: unknown[] = [];
-  const slugs = new Set<string>();
+async function fetchTools(params: string): Promise<ComposioTool[]> {
+  try {
+    const response = await fetch(`${BASE}/tools?${params}&toolkit_versions=latest`, { headers: headers() });
+    if (!response.ok) return [];
+    return ((await response.json()) as { items?: ComposioTool[] }).items ?? [];
+  } catch {
+    return []; // toolkit unavailable: skip it rather than failing the run
+  }
+}
 
-  for (const toolkit of Object.keys(CURATED)) {
-    try {
-      const response = await fetch(
-        `${BASE}/tools?toolkit_slug=${toolkit}&toolkit_versions=latest&limit=200`,
-        { headers: headers() }
-      );
-      if (!response.ok) continue;
-      const body = (await response.json()) as { items?: ComposioTool[] };
-      for (const tool of body.items ?? []) {
-        if (!wanted.has(tool.slug)) continue;
-        tools.push(openAiTool(tool));
-        slugs.add(tool.slug);
-      }
-    } catch {
-      /* toolkit unavailable: skip it rather than failing the run */
+const STOP = new Set(
+  "the and for with from that this what which when then than them they their your you are was were will would should could have has had into about each every all any not but can its it's how who why where there here out off over under just only more most less few some such per via use using get got me my our".split(" ")
+);
+
+const READS = new Set(["list", "get", "fetch", "search", "find", "read", "retrieve", "query"]);
+const DESTRUCTIVE = new Set(["delete", "remove", "archive", "ban", "revoke", "kick", "purge", "destroy", "close", "leave"]);
+
+/** Words that carry meaning, crudely singularised so "repositories" meets "repository". */
+function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 2 && !STOP.has(word))
+    .map((word) => word.replace(/ies$/, "y").replace(/s$/, ""));
+}
+
+/** How well a tool matches a job: a word in the tool's own name counts three times a word in its description. */
+function relevance(tool: ComposioTool, job: Set<string>, toolkit: string): number {
+  const name = new Set(words(`${tool.slug} ${tool.name ?? ""}`));
+  const description = new Set(words(tool.description ?? ""));
+  let score = 0;
+  for (const word of job) {
+    if (word === toolkit) continue; // every tool in the toolkit says "github"
+    if (name.has(word)) score += 3;
+    else if (description.has(word)) score += 1;
+  }
+  if (score === 0) return 0;
+  // An always-on agent mostly reads. Prefer tools that look things up, and never hand it a tool
+  // that destroys something unless the job itself says so.
+  const verbs = words(tool.slug);
+  if (verbs.some((verb) => DESTRUCTIVE.has(verb) && !job.has(verb))) return 0;
+  if (verbs.some((verb) => READS.has(verb))) score += 2;
+  // Between equal matches, the shorter name is the more general tool.
+  return score - tool.slug.length / 1000;
+}
+
+/**
+ * The tools one toolkit gives an agent. A curated toolkit gives its curated set. Anything else can
+ * have hundreds of tools (GitHub has 883) and Composio's own search does not rank them usefully,
+ * so we read the whole list once and keep the ones whose names match the job. With no match at
+ * all, the toolkit's featured tools stand in.
+ */
+async function toolsOf(toolkit: string, job: string): Promise<ComposioTool[]> {
+  const slug = encodeURIComponent(toolkit);
+  let all = toolkitTools.get(toolkit);
+  if (!all || Date.now() - all.at > 30 * 60_000) {
+    all = { at: Date.now(), tools: await fetchTools(`toolkit_slug=${slug}&limit=1000`) };
+    if (all.tools.length > 0) {
+      // Catalogues are large (GitHub's is 6 MB). Keep a handful, drop the oldest.
+      if (toolkitTools.size >= 10) toolkitTools.delete(toolkitTools.keys().next().value as string);
+      toolkitTools.set(toolkit, all);
     }
   }
 
-  cache = { at: Date.now(), tools, slugs };
-  return cache;
+  const curated = CURATED[toolkit];
+  if (curated) return all.tools.filter((tool) => curated.includes(tool.slug));
+
+  const wanted = new Set(words(job));
+  const ranked = all.tools
+    .map((tool) => ({ tool, score: relevance(tool, wanted, toolkit) }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, UNCURATED_LIMIT)
+    .map((entry) => entry.tool);
+  if (ranked.length >= UNCURATED_LIMIT) return ranked;
+
+  // Too few matches: top up with the toolkit's featured tools, minus anything destructive.
+  const have = new Set(ranked.map((tool) => tool.slug));
+  const featured = (await fetchTools(`toolkit_slug=${slug}&important=true&limit=30`)).filter(
+    (tool) => !have.has(tool.slug) && !words(tool.slug).some((verb) => DESTRUCTIVE.has(verb) && !wanted.has(verb))
+  );
+  return [...ranked, ...featured].slice(0, UNCURATED_LIMIT);
+}
+
+/**
+ * Tool definitions in the shape the model expects, for the toolkits one agent may use.
+ * With no list (records from before agents chose their apps) it is every curated toolkit.
+ */
+export async function composioTools(
+  toolkits?: string[],
+  job = ""
+): Promise<{ tools: unknown[]; slugs: Set<string> }> {
+  if (!composioConfigured()) return { tools: [], slugs: new Set() };
+
+  const tools: unknown[] = [];
+  const slugs = new Set<string>();
+
+  for (const toolkit of toolkits ?? Object.keys(CURATED)) {
+    for (const tool of await toolsOf(toolkit.toLowerCase(), job)) {
+      if (slugs.has(tool.slug)) continue;
+      tools.push(openAiTool(tool));
+      slugs.add(tool.slug);
+    }
+  }
+
+  return { tools, slugs };
 }
 
 export interface ComposioResult {
@@ -110,7 +190,12 @@ export async function composioExecute(
     const text = await response.text();
 
     if (!response.ok) {
-      return { ok: false, observation: `Connector rejected the call (${response.status}).` };
+      // No status code: a model handed one writes about the status code. The usual cause is that
+      // the owner has not connected this app yet, so say that.
+      return {
+        ok: false,
+        observation: "This app did not accept the request. It is probably not connected yet; the owner can connect it under Connect apps.",
+      };
     }
 
     const body = JSON.parse(text) as { data?: unknown; error?: string | null; successful?: boolean };
@@ -266,7 +351,24 @@ export async function authConfigFor(toolkit: string): Promise<string | null> {
     });
     if (!response.ok) return null;
     const body = (await response.json()) as { items?: Array<{ id?: string }> };
-    const id = body.items?.[0]?.id ?? null;
+    let id = body.items?.[0]?.id ?? null;
+
+    // First time anyone connects this app: make a Composio-managed auth config for it. This only
+    // succeeds for apps Composio can run the OAuth for; the rest need a developer app of our own.
+    if (!id) {
+      const created = await fetch(`${BASE}/auth_configs`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          toolkit: { slug: toolkit },
+          auth_config: { type: "use_composio_managed_auth", credentials: {}, restrict_to_following_tools: [] },
+        }),
+      });
+      if (created.ok) {
+        id = ((await created.json()) as { auth_config?: { id?: string } }).auth_config?.id ?? null;
+      }
+    }
+
     if (id) authConfigCache.set(toolkit, id);
     return id;
   } catch {

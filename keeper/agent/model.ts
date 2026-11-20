@@ -19,6 +19,34 @@ export interface ModelReply {
   completionTokens: number;
   /** What the gateway says answered. Compared against what we asked for. */
   answeredBy: string | null;
+  /** Work the gateway did itself during this call: code it ran, MCP tools it called, pages it read. */
+  gatewayCalls: GatewayCall[];
+  /** Which provider served the call, and whether a routing policy had to fall back to reach it. */
+  servedBy: { provider: string | null; model: string | null; fallback: boolean; attempts: number };
+}
+
+/** One server-side tool call, as Otari reports it in `otari_tool_calls`. */
+export interface GatewayCall {
+  id?: string;
+  type: string;
+  status?: string;
+  name?: string;
+  server?: string;
+  code?: string;
+  stdout?: string;
+  query?: string;
+  url?: string;
+}
+
+/** A refused call, with the gateway's own reason code so callers can say something useful. */
+export class GatewayError extends Error {
+  code: string | null;
+  status: number;
+  constructor(message: string, status: number, code: string | null) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
 }
 
 export interface ChatMessage {
@@ -38,6 +66,8 @@ export interface ModelCallOptions {
   maxTokens?: number;
   idleMs?: number;
   temperature?: number;
+  /** Extra top-level request fields the gateway understands: mcp_servers, user, guardrails. */
+  extra?: Record<string, unknown>;
 }
 
 export async function callModel(options: ModelCallOptions): Promise<ModelReply> {
@@ -67,6 +97,7 @@ export async function callModel(options: ModelCallOptions): Promise<ModelReply> 
     body.tool_choice = "auto";
   }
   if (typeof options.temperature === "number") body.temperature = options.temperature;
+  Object.assign(body, options.extra ?? {});
 
   const response = await fetch(url, {
     method: "POST",
@@ -78,8 +109,18 @@ export async function callModel(options: ModelCallOptions): Promise<ModelReply> 
   if (!response.ok || !response.body) {
     if (timer) clearTimeout(timer);
     const detail = (await response.text().catch(() => "")).replace(/<[^>]+>/g, " ").slice(0, 160);
-    throw new Error(`${options.model} returned ${response.status}: ${detail}`);
+    let code = response.headers.get("otari-error-code");
+    if (!code) code = /"(?:code|type)"\s*:\s*"([a-z_]+)"/.exec(detail)?.[1] ?? null;
+    throw new GatewayError(`${options.model} returned ${response.status}: ${detail}`, response.status, code);
   }
+
+  const servedBy = {
+    provider: response.headers.get("otari-provider"),
+    model: response.headers.get("otari-model"),
+    fallback: response.headers.get("otari-fallback") === "true",
+    attempts: Number(response.headers.get("otari-attempt-count") ?? 1) || 1,
+  };
+  const gatewayCalls = new Map<string, GatewayCall>();
 
   let content = "";
   let finishReason: string | undefined;
@@ -113,6 +154,9 @@ export async function callModel(options: ModelCallOptions): Promise<ModelReply> 
         continue;
       }
       if (frame.model) answeredBy = frame.model;
+      for (const call of (frame.otari_tool_calls ?? []) as GatewayCall[]) {
+        gatewayCalls.set(call.id ?? `${call.type}:${gatewayCalls.size}`, call);
+      }
       if (frame.usage) {
         promptTokens = frame.usage.prompt_tokens ?? promptTokens;
         completionTokens = frame.usage.completion_tokens ?? completionTokens;
@@ -149,5 +193,7 @@ export async function callModel(options: ModelCallOptions): Promise<ModelReply> 
     promptTokens,
     completionTokens,
     answeredBy,
+    gatewayCalls: [...gatewayCalls.values()],
+    servedBy,
   };
 }
