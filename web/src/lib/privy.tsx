@@ -88,7 +88,9 @@ export function PrivyWalletProvider({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={PRIVY_APP_ID ?? ""}
       config={{
-        loginMethods: ["twitter", "email", "wallet"],
+        // Twitter stays off until its OAuth app is configured: a login button that dead-ends is
+        // worse than one fewer option. Email still produces the Privy legitimacy signal.
+        loginMethods: ["email", "wallet"],
         defaultChain: metisAndromeda,
         supportedChains: [metisAndromeda],
         embeddedWallets: {
@@ -99,7 +101,7 @@ export function PrivyWalletProvider({ children }: { children: ReactNode }) {
           theme: "light",
           accentColor: "#00cfff",
           landingHeader: "Sign in to attempt a purse",
-          loginMessage: "X or email. No seed phrase, no extension.",
+          loginMessage: "Email, or connect your own wallet. No seed phrase.",
           // The wallet approval sheet shows whatever name the dApp advertises. Unset, mobile
           // wallets fall back to the host or the account name, which reads as a stranger asking
           // for permission. Name the project explicitly.

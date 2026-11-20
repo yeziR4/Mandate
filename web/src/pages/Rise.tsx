@@ -30,8 +30,8 @@ export default function Rise() {
       <h2 style={{ marginTop: 40 }}>How to play</h2>
       <ol style={{ lineHeight: 1.9, paddingLeft: 20 }}>
         <li>
-          <strong>Sign in.</strong> Email or X gives you a wallet instantly; or connect MetaMask,
-          Rabby or any WalletConnect wallet. You keep the keys either way.
+          <strong>Sign in.</strong> Email gives you a wallet instantly; or connect MetaMask, Rabby
+          or any WalletConnect wallet. You keep the keys either way.
         </li>
         <li>
           <strong>Get a little METIS.</strong> Any bridge or exchange withdrawal to Metis Andromeda

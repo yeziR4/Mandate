@@ -34,8 +34,9 @@ These come from Metis and are non-negotiable:
    receives project money before it uses the product does not count.
 2. **Payment goes anywhere except the playing wallet** — bank, PayPal, UPI, or a different address you
    nominate and never play from.
-3. **Sign in with X or email (Privy)** if you can. That login is one of the legitimacy signals Metis
-   verifies at month-end, alongside wallet age and prior Metis history.
+3. **Sign in with email (Privy)** if you can — it creates a wallet for you and is one of the
+   legitimacy signals Metis verifies at month-end, alongside wallet age and prior Metis history.
+   X login is disabled until its OAuth app is fixed; use email or connect your own wallet.
 4. **Three transactions per person is the target** — three attempts, spaced a minute apart. That is
    what turns a visitor into a counted user.
 

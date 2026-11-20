@@ -43,6 +43,25 @@ function RouteEffects() {
 export default function App() {
   const { pathname } = useLocation();
 
+  // The Mandate build is a separate product surface from Wick: its front door is the join page,
+  // not the agent console. Chosen at build time so the two deployments can share one bundle.
+  const MANDATE_BUILD = import.meta.env.VITE_MANDATE_BUILD === "1";
+
+  if (MANDATE_BUILD && pathname === "/") {
+    return (
+      <>
+        <RouteEffects />
+        <div className="app">
+          <Header />
+          <main>
+            <Rise />
+          </main>
+          <Footer />
+        </div>
+      </>
+    );
+  }
+
   // The front door is its own product surface: no keeper chrome, no legacy nav.
   if (pathname === "/") {
     return (

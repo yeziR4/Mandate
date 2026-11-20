@@ -13,6 +13,15 @@ const links = [
   { to: "/study", label: "Study" },
 ];
 
+// The Mandate deployment has no agent console: its front door is the join page.
+const mandateLinks = [
+  { to: "/", label: "Play" },
+  { to: "/board", label: "Agents" },
+  { to: "/certificates", label: "Certificates" },
+  { to: "/methodology", label: "Methodology" },
+  { to: "/study", label: "Study" },
+];
+
 function WalletButton() {
   const wallet = useWallet();
 
@@ -53,11 +62,14 @@ export default function Header() {
         </Link>
 
         <nav className="nav" aria-label="Primary">
-          {links.map((link) => (
-            <NavLink key={link.to} to={link.to} end={link.to === "/"}>
-              {link.label}
-            </NavLink>
-          ))}
+          {(() => {
+            const MANDATE_BUILD = import.meta.env.VITE_MANDATE_BUILD === "1";
+            return (MANDATE_BUILD ? mandateLinks : links).map((link) => (
+              <NavLink key={link.to} to={link.to} end={link.to === "/"}>
+                {link.label}
+              </NavLink>
+            ));
+          })()}
         </nav>
 
         <div className="hdr__right">
