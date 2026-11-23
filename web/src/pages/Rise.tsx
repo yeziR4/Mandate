@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ARENA_ADDRESS, USDC_ADDRESS } from "../lib/arena";
 import { shortAddress } from "../lib/format";
+import { PRIVY_APP_ID } from "../lib/wallet";
 
 /**
  * The join page.
@@ -30,8 +31,11 @@ export default function Rise() {
       <h2 style={{ marginTop: 40 }}>How to play</h2>
       <ol style={{ lineHeight: 1.9, paddingLeft: 20 }}>
         <li>
-          <strong>Sign in.</strong> Email gives you a wallet instantly; or connect MetaMask, Rabby
-          or any WalletConnect wallet. You keep the keys either way.
+          <strong>Sign in.</strong>{" "}
+          {PRIVY_APP_ID
+            ? "Email gives you a wallet instantly; or connect MetaMask, Rabby or any WalletConnect wallet."
+            : "Connect MetaMask, Rabby or any WalletConnect wallet — your keys stay in your wallet."}{" "}
+          You keep the keys either way.
         </li>
         <li>
           <strong>Get a little METIS.</strong> Any bridge or exchange withdrawal to Metis Andromeda
