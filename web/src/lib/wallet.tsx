@@ -118,8 +118,55 @@ export async function clientFor(wallet: Wallet) {
   if (!wallet.address) throw new Error("wallet not connected");
   const eth = await wallet.getProvider();
   if (!eth) throw new Error("no wallet provider");
+
+  // MetaMask rejects a signature with "The requested method and/or account has not been authorized
+  // by the user" (code 4100) when the origin was never granted the account we are signing from.
+  // That happens whenever the app holds an address from one wallet (e.g. a Privy embedded wallet or
+  // a previous session) while the provider belongs to another. Ask the provider which accounts it
+  // has actually authorised, and bind the client to one of those.
+  let authorised: `0x${string}`[] = [];
+  try {
+    authorised = (await eth.request({ method: "eth_requestAccounts" })) as `0x${string}`[];
+  } catch {
+    // User dismissed the prompt; fall back to whatever it will disclose without one.
+    authorised = (await eth.request({ method: "eth_accounts" })) as `0x${string}`[];
+  }
+
+  if (!authorised || authorised.length === 0) {
+    throw new Error(
+      "This wallet has not authorised the site yet. Open the wallet, connect the account, then try again."
+    );
+  }
+
+  const wanted = wallet.address.toLowerCase();
+  const account = authorised.find((entry) => entry.toLowerCase() === wanted) ?? authorised[0];
+
+  // A wallet that has never seen Metis Andromeda will happily sign for the wrong chain. Check and
+  // switch before building the client, so the transaction lands where the contract lives.
+  const chainId = (await eth.request({ method: "eth_chainId" })) as string;
+  if (Number.parseInt(chainId, 16) !== metisAndromeda.id) {
+    try {
+      await eth.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x440" }],
+      });
+    } catch {
+      await eth.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: "0x440",
+            chainName: metisAndromeda.name,
+            nativeCurrency: metisAndromeda.nativeCurrency,
+            rpcUrls: [...metisAndromeda.rpcUrls.default.http],
+          },
+        ],
+      });
+    }
+  }
+
   return createWalletClient({
-    account: wallet.address,
+    account,
     chain: metisAndromeda,
     transport: custom(eth),
   });
