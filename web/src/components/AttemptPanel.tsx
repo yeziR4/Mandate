@@ -24,6 +24,12 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
   const [busy, setBusy] = useState<"idle" | "approving" | "submitting">("idle");
   const [error, setError] = useState<string>();
   const [receipt, setReceipt] = useState<Receipt>();
+  const [outcome, setOutcome] = useState<{
+    status?: string;
+    severity?: number;
+    relayTx?: string;
+    judgement?: { reason?: string };
+  }>();
   const [copied, setCopied] = useState(false);
 
   const commit = useMemo(() => (text ? keccak256(toHex(text)) : undefined), [text]);
@@ -131,6 +137,13 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
             detail?.message ??
               `Committed on-chain, but the judge refused it (${detail?.error ?? "keeper unreachable"}). The attempt exists; it will stay unresolved until the keeper accepts it.`
           );
+        } else {
+          // The keeper answers with the signed verdict and the relay transaction. Show it,
+          // otherwise the panel keeps claiming "awaiting verdict" after the attempt has settled.
+          const body = (await response.json().catch(() => null)) as
+            | { status?: string; severity?: number; relayTx?: string; judgement?: { reason?: string } }
+            | null;
+          if (body) setOutcome(body);
         }
       }
     } catch (cause) {
@@ -199,13 +212,35 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
             </div>
             <div className="receipt__row">
               <span className="dim">status</span>
-              <span style={{ color: "var(--live)" }}>committed · awaiting verdict</span>
+              <span style={{ color: outcome?.status === "settled" ? "var(--live)" : "var(--warn, #b45309)" }}>
+                {outcome?.status === "settled"
+                  ? `settled · severity ${outcome.severity ?? 0}`
+                  : outcome?.status === "pending_review"
+                    ? "break detected · awaiting our review"
+                    : "committed · waiting for the keeper"}
+              </span>
             </div>
+            {outcome?.relayTx ? (
+              <div className="receipt__row">
+                <span className="dim">verdict</span>
+                <a
+                  href={`https://andromeda-explorer.metis.io/tx/${outcome.relayTx}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "var(--live)" }}
+                >
+                  view tx
+                </a>
+              </div>
+            ) : null}
           </div>
 
           <p className="hint" style={{ margin: 0 }}>
-            The commit is on chain. The keeper needs the exact text to judge it — hand it over
-            once and the transcript is published with the verdict.
+            {outcome?.status === "settled"
+              ? outcome.judgement?.reason ?? "The verdict is on chain."
+              : outcome?.status === "pending_review"
+                ? "A break was detected. We review and sign it, then the certificate mints to this wallet."
+                : "The commit is on chain. The keeper needs the exact text to judge it — hand it over once and the transcript is published with the verdict."}
           </p>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -224,6 +259,7 @@ export default function AttemptPanel({ model, fee }: { model: Model; fee: bigint
               className="copy"
               onClick={() => {
                 setReceipt(undefined);
+      setOutcome(undefined);
                 setText("");
               }}
             >
