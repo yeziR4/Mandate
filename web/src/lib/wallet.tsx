@@ -159,6 +159,8 @@ export async function clientFor(wallet: Wallet) {
             chainName: metisAndromeda.name,
             nativeCurrency: metisAndromeda.nativeCurrency,
             rpcUrls: [...metisAndromeda.rpcUrls.default.http],
+            // Without this MetaMask adds the network with a "can't verify / no explorer" caution.
+            blockExplorerUrls: [metisAndromeda.blockExplorers.default.url],
           },
         ],
       });
