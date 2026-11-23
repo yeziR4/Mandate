@@ -76,6 +76,13 @@ function PrivyBridge({ children }: { children: ReactNode }) {
     },
     getProvider: async () => {
       if (!ethereum) return undefined;
+      // Embedded wallets must go through Privy — it holds the keys. External wallets must not:
+      // MetaMask authorises accounts per origin, and a call relayed through Privy arrives from a
+      // different origin, which is rejected as 4100 "account and/or method has not been authorized
+      // by the user". Talk to the extension directly instead.
+      const kind = (ethereum as unknown as { walletClientType?: string }).walletClientType;
+      const injected = (globalThis as unknown as { ethereum?: EthereumProvider }).ethereum;
+      if (kind !== "privy" && injected) return injected;
       return (await ethereum.getEthereumProvider()) as unknown as EthereumProvider;
     },
   };
